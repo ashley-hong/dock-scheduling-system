@@ -1,0 +1,50 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A physical location vessels or events can be assigned to for a date range.
+// `capacity` is how many reservations may legitimately overlap at once:
+//   - 1 (the default) for a normal single-vessel berth - no overlaps allowed.
+//   - null for a multi-slot area (e.g. small-craft finger piers) where
+//     several occupants at once is expected and not a scheduling error.
+// `lengthFt` is null for areas where a single length doesn't apply (e.g. the
+// finger piers), which means vessel-length-fit checks are skipped for it.
+model Berth {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  lengthFt     Int?
+  capacity     Int?          @default(1)
+  notes        String?
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+enum OccupantType {
+  VESSEL
+  EVENT
+}
+
+model Reservation {
+  id             String       @id @default(cuid())
+  berth          Berth        @relation(fields: [berthId], references: [id], onDelete: Cascade)
+  berthId        String
+  occupantName   String
+  occupantType   OccupantType
+  vesselLengthFt Int?
+  startDate      DateTime
+  endDate        DateTime
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([berthId, startDate, endDate])
+}

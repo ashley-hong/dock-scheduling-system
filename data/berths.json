@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Inner Channel",
+    "lengthFt": 55,
+    "capacity": 1
+  },
+  {
+    "name": "North Finger Piers",
+    "lengthFt": null,
+    "capacity": null
+  },
+  {
+    "name": "North Pier East",
+    "lengthFt": 240,
+    "capacity": 1
+  },
+  {
+    "name": "North Pier Face",
+    "lengthFt": 75,
+    "capacity": 1
+  },
+  {
+    "name": "North Pier West",
+    "lengthFt": 410,
+    "capacity": 1
+  },
+  {
+    "name": "South Float East",
+    "lengthFt": 90,
+    "capacity": 1
+  },
+  {
+    "name": "South Float West",
+    "lengthFt": 90,
+    "capacity": 1
+  }
+]
