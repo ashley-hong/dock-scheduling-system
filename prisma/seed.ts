@@ -1,3 +1,6 @@
+// @prisma/client auto-loads .env in most setups, but that's not guaranteed
+// across every OS/shell combination, so load it explicitly here.
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import berthsData from "../data/berths.json";
 import reservationsData from "../data/reservations.json";
