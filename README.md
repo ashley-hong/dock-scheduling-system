@@ -58,6 +58,9 @@ cost or setup overhead.
 | FR5 | Show a calendar-style grid of berths × days so the schedule can be read at a glance. |
 | FR6 | Provide an on-demand report of any double-bookings or length mismatches that exist in the current data, without requiring a manual scan. |
 | FR7 | Import the 23 years of historical bookings from the provided spreadsheet as a working dataset, not just a handful of fixtures. |
+| FR8 | Let a booking be rescheduled or resized by dragging it on the grid, not only through the form — re-running the same overlap/length checks either way. |
+| FR9 | Find a booking anywhere in the 23-year history by vessel name, not only within whatever two-week window is currently on screen. |
+| FR10 | Export the full reservation history as CSV, since the tool it replaces was a spreadsheet and some workflows still expect one. |
 
 **Non-functional requirements**
 
@@ -139,6 +142,32 @@ from guessing at the domain:
   tool, matching how the original spreadsheet was used (one shared file,
   one dock coordinator). This is the most obvious next feature for a
   multi-user deployment, not an oversight.
+- **Drag-and-drop reuses the same validation, deliberately.** Dragging a
+  booking to a new date or resizing it calls the exact same `PATCH
+  /api/reservations/:id` endpoint as editing it through the form, so it goes
+  through `lib/validation.ts` identically. The UI updates optimistically for
+  responsiveness, but if the server rejects the move (a real overlap it
+  couldn't have seen in advance from the grid alone), the grid rolls back
+  and says why — there's no separate, weaker "drag" code path that could
+  drift out of sync with the form's rules.
+- **Search matches vessel/event name only, not notes or dates.** A simple
+  substring match against `occupantName` covers the actual use case ("find
+  R/V Example's bookings") without needing full-text search infrastructure
+  for a few thousand rows.
+- **CSV export is a full dump, not a filtered view.** It exports every
+  reservation regardless of what's currently on screen, on the assumption
+  that "get everything back out as a spreadsheet" is the more useful default
+  for the one workflow (an external export) that actually calls for it.
+- **A client-side timezone bug, found and fixed.** The calendar grid
+  originally parsed a "YYYY-MM-DD" string with `new Date(iso)` (UTC
+  midnight per spec) and then formatted it with the browser's local time —
+  correct in a UTC environment, but silently off by one day for any viewer
+  west of UTC, which is where an actual user of this tool would be.
+  `lib/calendar.ts` now goes through a `parseLocalDate` helper everywhere on
+  the client instead. Worth naming because it's the same category of bug as
+  the double-booking problem this project exists to solve: a small,
+  easy-to-miss inconsistency that only shows up for certain users, caught by
+  testing rather than shipped.
 
 ### API & UI shape
 
@@ -152,7 +181,10 @@ rejected with an explanation, not a generic failure.
 Three pages, matching the three things the prompt actually asks for: a
 **Calendar** to see and make bookings, **Berths** to manage the physical
 inventory (name, length, capacity), and **Data Quality** to audit what's
-already booked.
+already booked. The Calendar also surfaces a warning icon directly on any
+berth currently involved in a real conflict — linking to the Data Quality
+page — so finding a problem doesn't require remembering to check a separate
+page.
 
 ---
 
@@ -180,12 +212,19 @@ npm run db:seed               # load it into the database
 
 ```
 app/                 # Next.js App Router pages + API routes
-components/          # shared client components (e.g. the reservation form modal)
-lib/                 # prisma client, validation rules, shared types
+components/          # CalendarGrid, ReservationModal, and a shared Modal wrapper
+lib/                 # prisma client, validation rules, calendar helpers, shared types
 prisma/              # schema, migrations, seed script
 scripts/             # the legacy-spreadsheet conversion script
 data/                # generated seed JSON + the original source spreadsheet
 ```
+
+Within that, `lib/calendar.ts` holds the pure, testable calendar logic (lane
+assignment for overlapping bookings, collapsing a multi-day booking into one
+grid segment, date-safe formatting) so `components/CalendarGrid.tsx` stays
+focused on rendering and interaction (click, drag, resize), and `app/page.tsx`
+stays focused on data-fetching and state. None of the three do all three
+jobs at once.
 
 ---
 
@@ -204,6 +243,15 @@ What was actually verified before calling this done:
   Berths page adds/lists/deletes correctly, and the Data Quality page
   correctly reports zero conflicts against the (deduplicated) historical
   dataset.
+- The same for the later additions: dragging a booking to a new date and
+  resizing it from either edge, each confirmed by re-reading the row back
+  from the API afterward (not just trusting the visual result); a forced
+  double-booking (written directly via Prisma, bypassing the API, to
+  simulate bad legacy data) correctly appears on the Data Quality page and
+  as a warning icon on the affected berth in the calendar; searching by
+  vessel name correctly jumps to a real August 1997 booking from the
+  original spreadsheet; the vessel-name autocomplete list and CSV export
+  both checked against the live database.
 
 **Known gap:** there's no automated test suite (unit or integration) checked
 into the repo — given the scoped time budget, verification was manual/scripted
