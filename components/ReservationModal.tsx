@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Modal from "@/components/Modal";
 import type { Berth, OccupantType, Reservation } from "@/lib/types";
 
 type Props = {
@@ -16,10 +17,17 @@ type Props = {
     notes?: string | null;
   };
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (reservation: Reservation) => void;
+  onDeleted: (id: string) => void;
 };
 
-export default function ReservationModal({ berths, initial, onClose, onSaved }: Props) {
+export default function ReservationModal({
+  berths,
+  initial,
+  onClose,
+  onSaved,
+  onDeleted,
+}: Props) {
   const isEditing = Boolean(initial.id);
   const [berthId, setBerthId] = useState(initial.berthId);
   const [occupantName, setOccupantName] = useState(initial.occupantName ?? "");
@@ -32,8 +40,16 @@ export default function ReservationModal({ berths, initial, onClose, onSaved }: 
   const [notes, setNotes] = useState(initial.notes ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [vesselNames, setVesselNames] = useState<string[]>([]);
 
   const selectedBerth = berths.find((b) => b.id === berthId);
+
+  useEffect(() => {
+    fetch("/api/vessel-names")
+      .then((r) => r.json())
+      .then(setVesselNames)
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,7 +92,8 @@ export default function ReservationModal({ berths, initial, onClose, onSaved }: 
         return;
       }
 
-      onSaved();
+      const saved: Reservation = await res.json();
+      onSaved(saved);
     } catch {
       setError("Network error - please try again.");
       setSaving(false);
@@ -89,7 +106,7 @@ export default function ReservationModal({ berths, initial, onClose, onSaved }: 
     setSaving(true);
     const res = await fetch(`/api/reservations/${initial.id}`, { method: "DELETE" });
     if (res.ok) {
-      onSaved();
+      onDeleted(initial.id);
     } else {
       setError("Could not delete this reservation.");
       setSaving(false);
@@ -97,141 +114,147 @@ export default function ReservationModal({ berths, initial, onClose, onSaved }: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h2 className="mb-4 text-lg font-semibold">
-          {isEditing ? "Edit Reservation" : "New Reservation"}
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <Modal onClose={onClose}>
+      <h2 className="mb-4 text-lg font-semibold">
+        {isEditing ? "Edit Reservation" : "New Reservation"}
+      </h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Berth</label>
+          <select
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            value={berthId}
+            onChange={(e) => setBerthId(e.target.value)}
+            required
+          >
+            {berths.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name} {b.lengthFt ? `(${b.lengthFt}ft)` : "(no fixed length)"}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Berth</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Type</label>
             <select
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              value={berthId}
-              onChange={(e) => setBerthId(e.target.value)}
-              required
+              value={occupantType}
+              onChange={(e) => setOccupantType(e.target.value as OccupantType)}
             >
-              {berths.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} {b.lengthFt ? `(${b.lengthFt}ft)` : "(no fixed length)"}
-                </option>
-              ))}
+              <option value="VESSEL">Vessel</option>
+              <option value="EVENT">Event</option>
             </select>
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          {occupantType === "VESSEL" && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Type</label>
-              <select
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Vessel length (ft)
+              </label>
+              <input
+                type="number"
+                min={1}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                value={occupantType}
-                onChange={(e) => setOccupantType(e.target.value as OccupantType)}
-              >
-                <option value="VESSEL">Vessel</option>
-                <option value="EVENT">Event</option>
-              </select>
+                value={vesselLengthFt}
+                onChange={(e) => setVesselLengthFt(e.target.value)}
+                placeholder={selectedBerth?.lengthFt ? `max ${selectedBerth.lengthFt}` : undefined}
+                required
+              />
             </div>
-            {occupantType === "VESSEL" && (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Vessel length (ft)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                  value={vesselLengthFt}
-                  onChange={(e) => setVesselLengthFt(e.target.value)}
-                  placeholder={selectedBerth?.lengthFt ? `max ${selectedBerth.lengthFt}` : undefined}
-                  required
-                />
-              </div>
-            )}
-          </div>
+          )}
+        </div>
 
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {occupantType === "VESSEL" ? "Vessel name" : "Event name"}
+          </label>
+          <input
+            type="text"
+            list={occupantType === "VESSEL" ? "vessel-name-options" : undefined}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            value={occupantName}
+            onChange={(e) => setOccupantName(e.target.value)}
+            placeholder={occupantType === "VESSEL" ? "R/V Example" : "Community sail day"}
+            required
+          />
+          {occupantType === "VESSEL" && (
+            <datalist id="vessel-name-options">
+              {vesselNames.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              {occupantType === "VESSEL" ? "Vessel name" : "Event name"}
-            </label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Start date</label>
             <input
-              type="text"
+              type="date"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              value={occupantName}
-              onChange={(e) => setOccupantName(e.target.value)}
-              placeholder={occupantType === "VESSEL" ? "R/V Example" : "Community sail day"}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
               required
             />
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Start date</label>
-              <input
-                type="date"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">End date</label>
-              <input
-                type="date"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Notes</label>
-            <textarea
+            <label className="mb-1 block text-sm font-medium text-slate-700">End date</label>
+            <input
+              type="date"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              required
             />
           </div>
+        </div>
 
-          {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-          )}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Notes</label>
+          <textarea
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <div>
-              {isEditing && (
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={saving}
-                  className="rounded-md px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-                >
-                  Delete
-                </button>
-              )}
-            </div>
-            <div className="flex gap-2">
+        {error && (
+          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        )}
+
+        <div className="flex items-center justify-between pt-2">
+          <div>
+            {isEditing && (
               <button
                 type="button"
-                onClick={onClose}
-                className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
+                onClick={handleDelete}
                 disabled={saving}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+                className="rounded-md px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
               >
-                {saving ? "Saving..." : "Save"}
+                Delete
               </button>
-            </div>
+            )}
           </div>
-        </form>
-      </div>
-    </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </div>
+      </form>
+    </Modal>
   );
 }

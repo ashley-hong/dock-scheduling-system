@@ -1,108 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addDays, format } from "date-fns";
+import { addDays } from "date-fns";
+import CalendarGrid from "@/components/CalendarGrid";
 import ReservationModal from "@/components/ReservationModal";
-import type { Berth, Reservation } from "@/lib/types";
+import { parseLocalDate, toISODate } from "@/lib/calendar";
+import type { Berth, DataQualityConflict, Reservation } from "@/lib/types";
 
 const DAYS_SHOWN = 14;
-
-function toISODate(d: Date) {
-  return format(d, "yyyy-MM-dd");
-}
-
-function subtext(r: Reservation) {
-  const parts: string[] = [];
-  if (r.occupantType === "VESSEL" && r.vesselLengthFt) parts.push(`${r.vesselLengthFt} ft`);
-  const start = r.startDate.slice(0, 10);
-  const end = r.endDate.slice(0, 10);
-  if (start !== end) {
-    parts.push(`${format(new Date(start), "M/d")}–${format(new Date(end), "M/d")}`);
-  }
-  return parts.join(" · ");
-}
-
-function tooltipText(r: Reservation) {
-  const start = format(new Date(r.startDate), "MMM d, yyyy");
-  const end = format(new Date(r.endDate), "MMM d, yyyy");
-  const lines = [
-    r.occupantName,
-    r.occupantType === "VESSEL"
-      ? `Vessel${r.vesselLengthFt ? ` · ${r.vesselLengthFt} ft` : ""}`
-      : "Event",
-    start === end ? start : `${start} – ${end}`,
-  ];
-  if (r.notes) lines.push(r.notes);
-  return lines.join("\n");
-}
-
-/**
- * Greedy interval scheduling: assigns each reservation to the first "lane"
- * whose last-placed reservation ends before this one starts. Reservations
- * that overlap in time always land in different lanes, which is what lets
- * a multi-slip berth (capacity > 1) show several boats stacked as separate
- * rows instead of overlapping each other.
- */
-function assignLanes(reservations: Reservation[]): Reservation[][] {
-  const sorted = [...reservations].sort((a, b) => a.startDate.localeCompare(b.startDate));
-  const lanes: Reservation[][] = [];
-  const laneEnds: string[] = [];
-  for (const r of sorted) {
-    const start = r.startDate.slice(0, 10);
-    let placedIn = -1;
-    for (let i = 0; i < lanes.length; i++) {
-      if (laneEnds[i] < start) {
-        placedIn = i;
-        break;
-      }
-    }
-    if (placedIn === -1) {
-      lanes.push([r]);
-      laneEnds.push(r.endDate.slice(0, 10));
-    } else {
-      lanes[placedIn].push(r);
-      laneEnds[placedIn] = r.endDate.slice(0, 10);
-    }
-  }
-  return lanes;
-}
-
-type Segment =
-  | { type: "empty"; date: Date }
-  | { type: "reservation"; reservation: Reservation; span: number };
-
-/** Turns one lane's reservations into a left-to-right list of table cells:
- * either a single empty day, or one reservation collapsed into a single
- * cell spanning every consecutive visible day it covers (a colSpan), so a
- * multi-day booking renders as one connected bar instead of repeating. */
-function buildSegments(lane: Reservation[], days: Date[]): Segment[] {
-  const segments: Segment[] = [];
-  let i = 0;
-  while (i < days.length) {
-    const iso = toISODate(days[i]);
-    const match = lane.find((r) => r.startDate.slice(0, 10) <= iso && r.endDate.slice(0, 10) >= iso);
-    if (!match) {
-      segments.push({ type: "empty", date: days[i] });
-      i += 1;
-      continue;
-    }
-    let span = 0;
-    while (i + span < days.length) {
-      const iso2 = toISODate(days[i + span]);
-      if (match.startDate.slice(0, 10) <= iso2 && match.endDate.slice(0, 10) >= iso2) span += 1;
-      else break;
-    }
-    segments.push({ type: "reservation", reservation: match, span });
-    i += span;
-  }
-  return segments;
-}
 
 export default function CalendarPage() {
   const [berths, setBerths] = useState<Berth[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [conflicts, setConflicts] = useState<DataQualityConflict[]>([]);
   const [rangeStart, setRangeStart] = useState(() => toISODate(new Date()));
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [modalState, setModalState] = useState<null | {
     reservation?: Reservation;
     berthId?: string;
@@ -112,20 +26,24 @@ export default function CalendarPage() {
   const todayISO = toISODate(new Date());
 
   const days = useMemo(() => {
-    const start = new Date(rangeStart);
+    const start = parseLocalDate(rangeStart);
     return Array.from({ length: DAYS_SHOWN }, (_, i) => addDays(start, i));
   }, [rangeStart]);
 
   const rangeEnd = toISODate(days[days.length - 1]);
 
+  const conflictBerthIds = useMemo(() => new Set(conflicts.map((c) => c.berthId)), [conflicts]);
+
   async function loadData() {
     setLoading(true);
-    const [berthsRes, reservationsRes] = await Promise.all([
+    const [berthsRes, reservationsRes, conflictsRes] = await Promise.all([
       fetch("/api/berths"),
       fetch(`/api/reservations?from=${rangeStart}&to=${rangeEnd}`),
+      fetch("/api/data-quality"),
     ]);
     setBerths(await berthsRes.json());
     setReservations(await reservationsRes.json());
+    setConflicts(await conflictsRes.json());
     setLoading(false);
   }
 
@@ -139,9 +57,79 @@ export default function CalendarPage() {
     setModalState(null);
   }
 
-  function handleSaved() {
+  // Optimistic: the modal already has the server's confirmed record by the
+  // time this fires (it only calls onSaved after a successful response), so
+  // we just merge it into local state instead of refetching everything.
+  function handleSaved(saved: Reservation) {
+    setReservations((prev) => {
+      const exists = prev.some((r) => r.id === saved.id);
+      return exists ? prev.map((r) => (r.id === saved.id ? saved : r)) : [...prev, saved];
+    });
     closeModal();
-    loadData();
+    fetch("/api/data-quality")
+      .then((r) => r.json())
+      .then(setConflicts);
+  }
+
+  function handleDeleted(id: string) {
+    setReservations((prev) => prev.filter((r) => r.id !== id));
+    closeModal();
+    fetch("/api/data-quality")
+      .then((r) => r.json())
+      .then(setConflicts);
+  }
+
+  // Drag-to-move and edge-resize both go through here: update the grid
+  // immediately (optimistic), then confirm with the server. If the server
+  // rejects it (a real overlap, since dragging can't check length/overlap
+  // ahead of time the way the form does), roll the visible state back and
+  // say why - rather than silently snapping back with no explanation.
+  async function handleReschedule(reservationId: string, newStartISO: string, newEndISO: string) {
+    const previous = reservations;
+    const target = previous.find((r) => r.id === reservationId);
+    if (!target) return;
+
+    setReservations((prev) =>
+      prev.map((r) => (r.id === reservationId ? { ...r, startDate: newStartISO, endDate: newEndISO } : r))
+    );
+
+    const res = await fetch(`/api/reservations/${reservationId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ startDate: newStartISO, endDate: newEndISO }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      setReservations(previous);
+      const message =
+        data.error === "OVERLAP"
+          ? "Can't move there - that berth is already booked during those dates."
+          : data.error === "LENGTH_MISMATCH"
+          ? data.reason
+          : "Couldn't reschedule that booking.";
+      window.alert(message);
+      return;
+    }
+
+    const updated: Reservation = await res.json();
+    setReservations((prev) => prev.map((r) => (r.id === reservationId ? updated : r)));
+    fetch("/api/data-quality")
+      .then((r) => r.json())
+      .then(setConflicts);
+  }
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setSearchError(null);
+    if (!searchTerm.trim()) return;
+    const res = await fetch(`/api/reservations?search=${encodeURIComponent(searchTerm.trim())}`);
+    const matches: Reservation[] = await res.json();
+    if (matches.length === 0) {
+      setSearchError(`No bookings found for "${searchTerm.trim()}".`);
+      return;
+    }
+    setRangeStart(matches[0].startDate.slice(0, 10));
   }
 
   return (
@@ -150,13 +138,50 @@ export default function CalendarPage() {
         <div>
           <h1 className="text-xl font-semibold">Berth Calendar</h1>
           <p className="text-sm text-slate-500">
-            Hover a booking to see details, or click an empty cell to schedule a boat.
+            Hover a booking to see details, drag it to reschedule, or click an empty cell to
+            schedule a boat.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <a
+            href="/api/export"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+          >
+            Export CSV
+          </a>
+          {berths.length > 0 && (
+            <button
+              className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
+              onClick={() => setModalState({ berthId: berths[0].id, date: rangeStart })}
+            >
+              + New Reservation
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <form onSubmit={handleSearch} className="flex items-center gap-2">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Find a boat by name (searches all 23 years)"
+            className="w-72 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+          />
+          <button
+            type="submit"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+          >
+            Search
+          </button>
+          {searchError && <span className="text-sm text-red-600">{searchError}</span>}
+        </form>
+
+        <div className="flex items-center gap-2">
           <button
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
-            onClick={() => setRangeStart(toISODate(addDays(new Date(rangeStart), -DAYS_SHOWN)))}
+            onClick={() => setRangeStart(toISODate(addDays(parseLocalDate(rangeStart), -DAYS_SHOWN)))}
           >
             ← Prev {DAYS_SHOWN}
           </button>
@@ -174,18 +199,10 @@ export default function CalendarPage() {
           />
           <button
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
-            onClick={() => setRangeStart(toISODate(addDays(new Date(rangeStart), DAYS_SHOWN)))}
+            onClick={() => setRangeStart(toISODate(addDays(parseLocalDate(rangeStart), DAYS_SHOWN)))}
           >
             Next {DAYS_SHOWN} →
           </button>
-          {berths.length > 0 && (
-            <button
-              className="ml-2 rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
-              onClick={() => setModalState({ berthId: berths[0].id, date: rangeStart })}
-            >
-              + New Reservation
-            </button>
-          )}
         </div>
       </div>
 
@@ -200,107 +217,23 @@ export default function CalendarPage() {
           <span className="inline-block h-3 w-3 rounded-sm bg-blue-100" /> Today
         </span>
         <span className="text-slate-400">
-          A berth with room for more than one boat at a time (like North Finger Piers) shows each
-          simultaneous booking as its own row.
+          Drag a booking to move it, or drag its edges to resize. A berth with room for more than
+          one boat at a time shows each simultaneous booking as its own row.
         </span>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full table-fixed border-collapse text-sm">
-          <colgroup>
-            <col className="w-40" />
-            {days.map((d) => (
-              <col key={d.toISOString()} className="w-[110px]" />
-            ))}
-          </colgroup>
-          <thead>
-            <tr>
-              <th className="sticky left-0 z-10 border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-left font-medium">
-                Berth
-              </th>
-              {days.map((d) => {
-                const iso = toISODate(d);
-                return (
-                  <th
-                    key={d.toISOString()}
-                    className={`border-b border-slate-200 px-2 py-2 text-center font-medium ${
-                      iso === todayISO ? "bg-blue-100 text-blue-900" : "bg-slate-50"
-                    }`}
-                  >
-                    {format(d, "EEE M/d")}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {berths.map((berth) => {
-              const berthReservations = reservations.filter((r) => r.berthId === berth.id);
-              const lanes = assignLanes(berthReservations);
-              const rowCount = Math.max(1, lanes.length);
-
-              return Array.from({ length: rowCount }, (_, laneIndex) => {
-                const segments = buildSegments(lanes[laneIndex] ?? [], days);
-                return (
-                  <tr key={`${berth.id}-${laneIndex}`}>
-                    {laneIndex === 0 && (
-                      <td
-                        rowSpan={rowCount}
-                        className="sticky left-0 z-10 border-b border-r border-slate-200 bg-white px-3 py-2 align-top font-medium"
-                      >
-                        {berth.name}
-                        <div className="text-xs font-normal text-slate-400">
-                          {berth.lengthFt ? `${berth.lengthFt} ft` : "multi-slip"}
-                        </div>
-                      </td>
-                    )}
-                    {segments.map((seg) => {
-                      if (seg.type === "empty") {
-                        const iso = toISODate(seg.date);
-                        return (
-                          <td
-                            key={iso}
-                            className={`group cursor-pointer border-b border-slate-100 px-1 py-1 align-top transition-colors hover:bg-slate-50 ${
-                              iso === todayISO ? "bg-blue-50/60" : ""
-                            }`}
-                            onClick={() => setModalState({ berthId: berth.id, date: iso })}
-                          >
-                            <span className="flex h-8 w-full items-center justify-center text-base text-slate-300 opacity-0 transition-opacity group-hover:opacity-100">
-                              +
-                            </span>
-                          </td>
-                        );
-                      }
-                      const r = seg.reservation;
-                      return (
-                        <td
-                          key={r.id}
-                          colSpan={seg.span}
-                          className="cursor-pointer border-b border-slate-100 px-1 py-1 align-top"
-                          onClick={() => setModalState({ reservation: r })}
-                        >
-                          <div
-                            className={`rounded px-1.5 py-1 text-left text-xs ${
-                              r.occupantType === "VESSEL" ? "bg-sky-200" : "bg-amber-200"
-                            } transition-opacity hover:opacity-80`}
-                            title={tooltipText(r)}
-                          >
-                            <span className="block truncate font-medium">{r.occupantName}</span>
-                            {subtext(r) && (
-                              <span className="block truncate text-[10px] font-normal text-slate-600/70">
-                                {subtext(r)}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              });
-            })}
-          </tbody>
-        </table>
+        <CalendarGrid
+          berths={berths}
+          reservations={reservations}
+          days={days}
+          todayISO={todayISO}
+          conflictBerthIds={conflictBerthIds}
+          onEmptyClick={(berthId, date) => setModalState({ berthId, date })}
+          onReservationClick={(reservation) => setModalState({ reservation })}
+          onMove={handleReschedule}
+          onResize={handleReschedule}
+        />
         {loading && <p className="p-4 text-sm text-slate-400">Loading...</p>}
         {!loading && berths.length === 0 && (
           <p className="p-4 text-sm text-slate-400">
@@ -332,6 +265,7 @@ export default function CalendarPage() {
           }
           onClose={closeModal}
           onSaved={handleSaved}
+          onDeleted={handleDeleted}
         />
       )}
     </div>

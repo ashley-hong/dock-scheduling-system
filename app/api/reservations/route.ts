@@ -8,15 +8,24 @@ export async function GET(request: NextRequest) {
   const berthId = searchParams.get("berthId") ?? undefined;
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  const search = searchParams.get("search")?.trim();
 
+  // A search ignores the visible date window on purpose - it's meant to
+  // find a booking anywhere across the 23 years of history, not just the
+  // two weeks currently on screen.
   const reservations = await prisma.reservation.findMany({
     where: {
       berthId,
-      ...(from ? { endDate: { gte: parseDateOnly(from) } } : {}),
-      ...(to ? { startDate: { lte: parseDateOnly(to) } } : {}),
+      ...(search
+        ? { occupantName: { contains: search } }
+        : {
+            ...(from ? { endDate: { gte: parseDateOnly(from) } } : {}),
+            ...(to ? { startDate: { lte: parseDateOnly(to) } } : {}),
+          }),
     },
     include: { berth: true },
     orderBy: { startDate: "asc" },
+    take: search ? 25 : undefined,
   });
 
   return NextResponse.json(reservations);
