@@ -17,6 +17,7 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [exportRange, setExportRange] = useState("current");
   const [modalState, setModalState] = useState<null | {
     reservation?: Reservation;
     berthId?: string;
@@ -132,6 +133,25 @@ export default function CalendarPage() {
     setRangeStart(matches[0].startDate.slice(0, 10));
   }
 
+  function handleExport() {
+    let url: string;
+    if (exportRange === "all") {
+      url = "/api/export";
+    } else if (exportRange === "current") {
+      url = `/api/export?from=${rangeStart}&to=${rangeEnd}`;
+    } else {
+      const weeks = Number(exportRange);
+      const from = toISODate(new Date());
+      const to = toISODate(addDays(new Date(), weeks * 7 - 1));
+      url = `/api/export?from=${from}&to=${to}`;
+    }
+    // A plain <a> click (rather than window.location) triggers the file
+    // download without Next.js treating it as a client-side navigation.
+    const link = document.createElement("a");
+    link.href = url;
+    link.click();
+  }
+
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -143,12 +163,23 @@ export default function CalendarPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <a
-            href="/api/export"
+          <select
+            value={exportRange}
+            onChange={(e) => setExportRange(e.target.value)}
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            aria-label="Export range"
+          >
+            <option value="current">Currently displayed ({DAYS_SHOWN} days)</option>
+            <option value="4">Next 4 weeks</option>
+            <option value="12">Next 12 weeks</option>
+            <option value="all">All time (23 years)</option>
+          </select>
+          <button
+            onClick={handleExport}
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
           >
             Export CSV
-          </a>
+          </button>
           {berths.length > 0 && (
             <button
               className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-700"

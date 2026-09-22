@@ -154,10 +154,14 @@ from guessing at the domain:
   substring match against `occupantName` covers the actual use case ("find
   R/V Example's bookings") without needing full-text search infrastructure
   for a few thousand rows.
-- **CSV export is a full dump, not a filtered view.** It exports every
-  reservation regardless of what's currently on screen, on the assumption
-  that "get everything back out as a spreadsheet" is the more useful default
-  for the one workflow (an external export) that actually calls for it.
+- **CSV export defaults to a range, not a full dump.** The first version
+  exported all ~2,100 reservations unconditionally, which turned out to be a
+  real usability problem in practice - a 23-year CSV isn't "digestible" for
+  someone who just wants this week's schedule. `GET /api/export` now accepts
+  optional `from`/`to` dates, and the UI offers the currently-displayed
+  range, the next 4 or 12 weeks, or all-time as an explicit choice, so the
+  common case (a short range) is one click, and the full history is still
+  there when that's genuinely what's needed.
 - **A client-side timezone bug, found and fixed.** The calendar grid
   originally parsed a "YYYY-MM-DD" string with `new Date(iso)` (UTC
   midnight per spec) and then formatted it with the browser's local time —
