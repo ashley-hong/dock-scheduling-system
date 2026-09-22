@@ -1,291 +1,256 @@
 # Harborview Dock Scheduler
 
-A berth reservation system for a marine research facility, built to replace a
-23-year-old spreadsheet grid that had to be checked by eye for double-bookings
-and vessel/berth-length mismatches.
+Harborview Dock Scheduler is a web application for managing berth reservations at a marine research facility. It replaces a 23-year spreadsheet schedule that required staff to check manually for double-bookings and vessel-to-berth length mismatches.
 
-**Live demo:** _add your deployed URL here_
-**Repo:** this repository
+**Live application:** _Add deployed URL here_  
+**Repository:** _Add repository URL here_
 
-This document is organized around the six phases of the development
-lifecycle, so the reasoning behind the project — not just the code — is easy
-to follow.
+## Features
 
----
+- View reservations in a two-week calendar organized by berth and date
+- Create, edit, move, resize, and delete vessel or event reservations
+- Prevent reservations that exceed a berth's capacity
+- Prevent vessels from being assigned to berths that are too short
+- Search the complete reservation history by vessel or event name
+- Manage berth names, lengths, and capacities
+- Audit existing reservations for scheduling and vessel-fit conflicts
+- Export reservations as CSV for a selected date range or the complete history
+- Load approximately 2,100 historical reservations from the provided spreadsheet
 
-## 1. Planning & Feasibility
+## Technology
 
-**Problem.** A waterfront facility assigns berths of varying length to
-vessels and to non-vessel events (e.g. community sail days) for date ranges.
-The existing process is a spreadsheet grid (one tab per year, berths as rows,
-days as columns) that a person has to scan visually to answer two questions
-before approving a booking: *"is this berth free on these dates?"* and *"does
-this vessel actually fit?"* Both are easy to get wrong by eye, especially
-across 20+ years of data.
+- **Next.js and React:** User interface and API routes
+- **TypeScript:** Static type checking
+- **Prisma:** Database access and schema management
+- **SQLite:** Local data storage
+- **Tailwind CSS:** Interface styling
+- **date-fns:** Calendar calculations and date formatting
 
-**Goal.** Build a small web application that answers both questions
-automatically at the moment a reservation is made, replacing manual
-grid-checking, and prove it against the facility's own 23 years of historical
-bookings rather than toy data.
+## Getting Started
 
-**Scope.**
-- In scope: berth management, reservation CRUD, automatic double-booking and
-  length-fit checks, a calendar view of the schedule, an on-demand audit of
-  existing data, and importing the provided historical spreadsheet.
-- Out of scope (explicitly, to fit a focused build): user accounts/auth
-  (single trusted internal tool), notifications/emails, billing, multi-facility
-  support. These are natural "next steps," not gaps I missed — see
-  Section 3 for why each was left out.
+### Requirements
 
-**Feasibility.** Everything used is free and needs no paid accounts: Next.js
-+ SQLite run entirely within the app itself (no external database service to
-provision), and the whole thing deploys to a free hosting tier. That made a
-working, publicly-accessible system achievable without any infrastructure
-cost or setup overhead.
+- Node.js 20 or later
+- npm
+- Python 3, only if you need to rerun the spreadsheet conversion
 
----
+### Installation
 
-## 2. Requirements Analysis
-
-**Functional requirements**
-
-| # | Requirement |
-|---|---|
-| FR1 | Create, edit, and delete berths, each with a name and (optionally) a fixed length. |
-| FR2 | Create, edit, and delete reservations: a berth, an occupant (vessel or event), a date range, and — for vessels — a length. |
-| FR3 | Reject a reservation that would double-book a berth (more simultaneous occupants than the berth allows). |
-| FR4 | Reject a vessel reservation if the vessel is longer than its assigned berth. |
-| FR5 | Show a calendar-style grid of berths × days so the schedule can be read at a glance. |
-| FR6 | Provide an on-demand report of any double-bookings or length mismatches that exist in the current data, without requiring a manual scan. |
-| FR7 | Import the 23 years of historical bookings from the provided spreadsheet as a working dataset, not just a handful of fixtures. |
-| FR8 | Let a booking be rescheduled or resized by dragging it on the grid, not only through the form — re-running the same overlap/length checks either way. |
-| FR9 | Find a booking anywhere in the 23-year history by vessel name, not only within whatever two-week window is currently on screen. |
-| FR10 | Export the full reservation history as CSV, since the tool it replaces was a spreadsheet and some workflows still expect one. |
-
-**Non-functional requirements**
-
-| # | Requirement |
-|---|---|
-| NFR1 | Runs as a public web app reachable by URL — no local setup required to review it. |
-| NFR2 | Built on mainstream, well-documented technology so it's realistic to keep extending with AI pair-programming (Claude Code) by someone without a software background. |
-| NFR3 | No authentication — a single shared internal tool is assumed; see Section 3. |
-| NFR4 | Comfortably handles the actual data volume involved (~2,100 historical reservations, 7 berths) without needing pagination or caching. |
-
----
-
-## 3. Design
-
-### Data model
-
+```bash
+git clone <repository-url>
+cd dock-scheduling-system
+npm install
+cp .env.example .env
+npm run db:setup
+npm run dev
 ```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+### Available Commands
+
+```bash
+npm run dev                  # Start the development server
+npm run build                # Create a production build
+npm run start                # Start the production server
+npm run lint                 # Run ESLint
+npx tsc --noEmit             # Run the TypeScript type checker
+npm run db:setup             # Apply migrations and reload seed data
+npm run db:seed              # Reload seed data without running migrations
+npm run convert-legacy-data  # Regenerate seed data from the source workbook
+```
+
+`npm run db:setup` reloads the historical seed data. Any reservations created locally will be replaced.
+
+## Using the Application
+
+### Calendar
+
+The Calendar displays two weeks of reservations, grouped by berth. From this page, users can:
+
+- Click an empty date to create a reservation
+- Click a reservation to view, edit, or delete it
+- Drag a reservation to move it to new dates
+- Drag either edge of a reservation to change its duration
+- Search for a vessel or event across the complete reservation history
+- Export the visible range, the next 4 or 12 weeks, or the complete history
+
+All reservation changes pass through the same server-side validation. If a drag or resize operation is rejected, the calendar restores the previous dates and explains the conflict.
+
+### Berths
+
+The Berths page manages the facility's physical inventory. Each berth has a name, an optional length, and a capacity. A standard berth accepts one reservation at a time. A multi-slip area can allow overlapping reservations.
+
+### Data Quality
+
+The Data Quality page scans existing reservations for:
+
+- Overlapping reservations that exceed berth capacity
+- Vessels with recorded lengths greater than their assigned berth lengths
+
+The Calendar also displays a warning beside any berth with a detected conflict.
+
+## Architecture
+
+The project separates interface components, API routes, business rules, and data import logic.
+
+```text
+app/                 Next.js pages and API routes
+components/          Calendar and reservation interface components
+lib/                 Validation, date handling, database client, and shared types
+prisma/              Database schema, migrations, and seed script
+scripts/             Historical spreadsheet conversion script
+data/                Generated seed data and the source workbook
+```
+
+Important files include:
+
+- [`lib/validation.ts`](lib/validation.ts): berth-capacity and vessel-fit rules
+- [`lib/calendar.ts`](lib/calendar.ts): calendar layout and client-side date handling
+- [`app/api/reservations`](app/api/reservations): reservation read and write endpoints
+- [`app/api/data-quality/route.ts`](app/api/data-quality/route.ts): full-dataset audit endpoint
+- [`scripts/convert_legacy_xlsx.py`](scripts/convert_legacy_xlsx.py): historical data conversion
+- [`prisma/schema.prisma`](prisma/schema.prisma): database models and relationships
+
+### Data Model
+
+```text
 Berth
-  id, name (unique)
-  lengthFt   Int?     // null = no single fixed length applies
-  capacity   Int?     // null = unlimited/multi-slip; default 1 = one occupant at a time
+  id          Int       primary key
+  name        String    unique
+  lengthFt    Int?      null = no single fixed length applies
+  capacity    Int?      1 = one occupant; null = multi-slip area
+  notes       String?
 
 Reservation
-  id, berthId -> Berth
-  occupantName, occupantType (VESSEL | EVENT)
-  vesselLengthFt Int?
-  startDate, endDate  // whole-day granularity
-  notes
+  id              Int             primary key
+  berthId         Int             foreign key -> Berth.id
+  occupantName    String
+  occupantType    OccupantType    VESSEL | EVENT
+  vesselLengthFt  Int?            null = unknown or not applicable
+  startDate       DateTime        inclusive
+  endDate         DateTime        inclusive
+  notes           String?
 ```
 
-The two business rules — capacity and length-fit — both live in
-[`lib/validation.ts`](lib/validation.ts) and are reused in two places: the
-API rejects a write that breaks either rule, and the **Data Quality** page
-runs the same checks read-only across everything already in the database.
-That's the direct replacement for "look at the grid and check by eye."
+Reservations use whole-day, inclusive date ranges because the source schedule is organized by day.
 
-### Key design decisions and assumptions
+## Validation
 
-These came from actually parsing the provided 23-year spreadsheet
-([`scripts/convert_legacy_xlsx.py`](scripts/convert_legacy_xlsx.py)), not
-from guessing at the domain:
+The two primary business rules are defined in [`lib/validation.ts`](lib/validation.ts):
 
-- **`capacity` instead of a one-off "allow rafting" flag.** The source data
-  has a "North Finger Piers" area that's laid out as 2–3 simultaneous rows of
-  small-craft slips rather than one berth with one occupant, and a separate
-  contact sheet notes a yacht that "will raft alongside if needed." Rather
-  than special-case rafting, a berth's `capacity` says how many reservations
-  may legitimately overlap: `1` (the default) for a normal single-vessel
-  berth, `null` for a multi-slot area. This is a general mechanism, not a
-  patch for one berth.
-- **No single length for the finger piers.** That same area doesn't have one
-  fixed length in the source data (it's a bank of small-craft slips), so it's
-  imported with `lengthFt = null`, which skips the length-fit check for it.
-- **Vessel vs. event classification is prefix-based.** The historical
-  occupant strings follow a real naming convention (`R/V`, `M/V`, `S/V`,
-  `F/V`, `M/Y`, `S/Y`, `OSV`, `Tug`, `Barge`), so the importer classifies
-  anything starting with one of those as a vessel and everything else
-  (`Community sail day`, `Bollard replacement, west face`, `ETA 1400`, …) as
-  an event. A few edge cases like "Bunker barge" may be misclassified since
-  the source never tagged type explicitly — a real system would want an
-  explicit type field at data-entry time, which the app now provides going
-  forward.
-- **Historical vessel lengths are unknown.** The legacy spreadsheet didn't
-  reliably record a vessel's length next to each booking, so imported
-  reservations have `vesselLengthFt = null` and are exempt from the length
-  check. New reservations entered through the app require a length when the
-  occupant is a vessel, so the check is fully active going forward — it just
-  can't be retroactively applied to bookings where the source data never
-  captured it.
-- **Found and fixed a real data artifact.** A few year-tabs in the source
-  workbook duplicate the tail end of the previous year's December block
-  (a copy-paste leftover from when each new year's tab was created). Without
-  deduplicating identical `(berth, date, occupant)` entries, the importer
-  would have reported the same historical booking as double-booked against
-  itself. This is exactly the kind of manual-spreadsheet error the project
-  is meant to prevent, and it's worth calling out that it was caught during
-  import, not shipped as bad data.
-- **No authentication.** Treated as a single-user/trusted-staff internal
-  tool, matching how the original spreadsheet was used (one shared file,
-  one dock coordinator). This is the most obvious next feature for a
-  multi-user deployment, not an oversight.
-- **Drag-and-drop reuses the same validation, deliberately.** Dragging a
-  booking to a new date or resizing it calls the exact same `PATCH
-  /api/reservations/:id` endpoint as editing it through the form, so it goes
-  through `lib/validation.ts` identically. The UI updates optimistically for
-  responsiveness, but if the server rejects the move (a real overlap it
-  couldn't have seen in advance from the grid alone), the grid rolls back
-  and says why — there's no separate, weaker "drag" code path that could
-  drift out of sync with the form's rules.
-- **Search matches vessel/event name only, not notes or dates.** A simple
-  substring match against `occupantName` covers the actual use case ("find
-  R/V Example's bookings") without needing full-text search infrastructure
-  for a few thousand rows.
-- **CSV export defaults to a range, not a full dump.** The first version
-  exported all ~2,100 reservations unconditionally, which turned out to be a
-  real usability problem in practice - a 23-year CSV isn't "digestible" for
-  someone who just wants this week's schedule. `GET /api/export` now accepts
-  optional `from`/`to` dates, and the UI offers the currently-displayed
-  range, the next 4 or 12 weeks, or all-time as an explicit choice, so the
-  common case (a short range) is one click, and the full history is still
-  there when that's genuinely what's needed.
-- **A client-side timezone bug, found and fixed.** The calendar grid
-  originally parsed a "YYYY-MM-DD" string with `new Date(iso)` (UTC
-  midnight per spec) and then formatted it with the browser's local time —
-  correct in a UTC environment, but silently off by one day for any viewer
-  west of UTC, which is where an actual user of this tool would be.
-  `lib/calendar.ts` now goes through a `parseLocalDate` helper everywhere on
-  the client instead. Worth naming because it's the same category of bug as
-  the double-booking problem this project exists to solve: a small,
-  easy-to-miss inconsistency that only shows up for certain users, caught by
-  testing rather than shipped.
+1. A reservation cannot cause a berth to exceed its capacity.
+2. A vessel with a known length cannot be assigned to a shorter berth.
 
-### API & UI shape
+Reservation creation, form-based editing, dragging, and resizing all use the same validation functions. The Data Quality page also uses these rules when auditing existing records. Keeping the rules in one module ensures that every entry point evaluates reservations consistently.
 
-REST-style routes under `/api/berths` and `/api/reservations` (standard
-CRUD), plus `/api/data-quality` for the audit. Validation failures return a
-structured error (`409` for an overlap with the conflicting reservations
-attached, `422` for a length mismatch with a human-readable reason) that the
-UI turns directly into an inline message — the goal is that a bad booking is
-rejected with an explanation, not a generic failure.
+Validation failures return structured API responses:
 
-Three pages, matching the three things the prompt actually asks for: a
-**Calendar** to see and make bookings, **Berths** to manage the physical
-inventory (name, length, capacity), and **Data Quality** to audit what's
-already booked. The Calendar also surfaces a warning icon directly on any
-berth currently involved in a real conflict — linking to the Data Quality
-page — so finding a problem doesn't require remembering to check a separate
-page.
+- `409 Conflict` for a capacity violation, including the conflicting reservations
+- `422 Unprocessable Entity` for a vessel-length violation, including a plain-language explanation
 
----
+## Historical Data Import
 
-## 4. Development
+[`scripts/convert_legacy_xlsx.py`](scripts/convert_legacy_xlsx.py) converts the original spreadsheet into normalized berth and reservation records. It:
 
-**Stack:** Next.js (App Router, TypeScript), Prisma ORM + SQLite, Tailwind
-CSS, `date-fns`. Chosen for being mainstream and thoroughly documented —
-important both for a 3–5 hour build and for being realistic to keep editing
-with an AI assistant afterward (see `AGENTS.md`).
+- Reconstructs dates from the workbook's month and day headers
+- Combines consecutive cells for the same occupant into one reservation
+- Handles the multi-row North Finger Piers section
+- Classifies occupants as vessels or events
+- Removes duplicate cells repeated across yearly tabs
 
-**Legacy data pipeline** (a first-class part of this project, not a
-one-off script): [`scripts/convert_legacy_xlsx.py`](scripts/convert_legacy_xlsx.py)
-parses the original grid workbook — reconstructing calendar dates from the
-month-block headers, collapsing consecutive same-occupant days into date
-ranges, and handling the finger-piers multi-row section — into
-`data/berths.json` and `data/reservations.json`. `prisma/seed.ts` loads those
-into the database. Re-run the whole pipeline with:
+The script writes the results to `data/berths.json` and `data/reservations.json`. [`prisma/seed.ts`](prisma/seed.ts) loads these files into SQLite.
 
-```
-npm run convert-legacy-data   # regenerate data/*.json from the source .xlsx
-npm run db:seed               # load it into the database
+To regenerate and reload the imported data:
+
+```bash
+npm run convert-legacy-data
+npm run db:seed
 ```
 
-**Repo layout**
+## Assumptions and Design Decisions
 
-```
-app/                 # Next.js App Router pages + API routes
-components/          # CalendarGrid, ReservationModal, and a shared Modal wrapper
-lib/                 # prisma client, validation rules, calendar helpers, shared types
-prisma/              # schema, migrations, seed script
-scripts/             # the legacy-spreadsheet conversion script
-data/                # generated seed JSON + the original source spreadsheet
-```
+### Berth Capacity
 
-Within that, `lib/calendar.ts` holds the pure, testable calendar logic (lane
-assignment for overlapping bookings, collapsing a multi-day booking into one
-grid segment, date-safe formatting) so `components/CalendarGrid.tsx` stays
-focused on rendering and interaction (click, drag, resize), and `app/page.tsx`
-stays focused on data-fetching and state. None of the three do all three
-jobs at once.
+Most berths accept one occupant at a time. North Finger Piers represents several small-craft slips and contains simultaneous reservations in the source data. Standard berths therefore use `capacity = 1`, while North Finger Piers uses `capacity = null` to indicate a multi-slip area where overlap is allowed.
 
----
+### Unknown Berth Lengths
 
-## 5. Testing
+North Finger Piers does not have one meaningful fixed length because it represents several slips. Its `lengthFt` value is `null`, so vessel-fit validation is skipped for that area.
 
-What was actually verified before calling this done:
+### Unknown Historical Vessel Lengths
 
-- `npx tsc --noEmit` — clean, no type errors.
-- `npm run lint` — clean.
-- `npm run build` — production build succeeds.
-- Manual + scripted browser testing (Playwright) of the real user flow:
-  calendar loads and renders seeded berths, creating a reservation through
-  the UI persists and re-renders correctly, an overlapping reservation is
-  rejected with a `409` and the conflicting booking named in the error, an
-  oversized vessel is rejected with a `422` and a plain-language reason, the
-  Berths page adds/lists/deletes correctly, and the Data Quality page
-  correctly reports zero conflicts against the (deduplicated) historical
-  dataset.
-- The same for the later additions: dragging a booking to a new date and
-  resizing it from either edge, each confirmed by re-reading the row back
-  from the API afterward (not just trusting the visual result); a forced
-  double-booking (written directly via Prisma, bypassing the API, to
-  simulate bad legacy data) correctly appears on the Data Quality page and
-  as a warning icon on the affected berth in the calendar; searching by
-  vessel name correctly jumps to a real August 1997 booking from the
-  original spreadsheet; the vessel-name autocomplete list and CSV export
-  both checked against the live database.
+The source workbook does not consistently record vessel lengths. Imported reservations therefore use `vesselLengthFt = null`, and the system does not apply a length check when the source value is unknown. New reservations can include a vessel length, which is validated when both the vessel and berth lengths are available.
 
-**Known gap:** there's no automated test suite (unit or integration) checked
-into the repo — given the scoped time budget, verification was manual/scripted
-rather than a maintained suite. If this were going further, `lib/validation.ts`
-(the overlap and length-fit logic) is exactly where I'd start, since it's the
-part correctness most depends on.
+### Vessel and Event Classification
 
----
+The workbook does not contain an explicit occupant type. During import, names beginning with common vessel prefixes such as `R/V`, `M/V`, `S/V`, `F/V`, `M/Y`, `S/Y`, `OSV`, `Tug`, or `Barge` are classified as vessels. Other records are classified as events.
 
-## 6. Deployment
+This rule follows the naming conventions in the source data, but unusual names may be classified incorrectly. New reservations use an explicit Vessel or Event field and do not depend on name parsing.
 
-The app is a standard Next.js app and deploys anywhere that runs Node. Steps
-for [Render](https://render.com) (free, no credit card required):
+### Duplicate Historical Records
 
-1. Push this repo to GitHub (already done if you're reading this there).
-2. In Render, **New → Web Service**, connect the GitHub repo.
-3. Build command: `npm install && npm run build`
-   Start command: `npm run db:setup && npm start`
-4. Add an environment variable `DATABASE_URL` = `file:./dev.db`.
-5. Deploy. The first boot runs migrations and seeds the 23 years of
-   historical data automatically.
+Some yearly tabs repeat dates from the end of the previous December. The importer removes exact duplicates based on berth, date, and occupant before combining consecutive days into reservations. This prevents one historical booking from appearing to conflict with itself.
 
-**Known limitation, stated plainly:** Render's free tier has no persistent
-disk, so the SQLite file resets to the seeded historical dataset whenever the
-instance restarts after a period of inactivity — any reservations added
-during a demo session won't survive a cold start. For a real deployment, the
-fix is a managed database instead of a local file: swap `provider = "sqlite"`
-for `provider = "postgresql"` in `prisma/schema.prisma`, point `DATABASE_URL`
-at a hosted Postgres instance (e.g. a free one from
-[Neon](https://neon.tech) or Render's own Postgres), and everything else —
-schema, validation, API, UI — is unchanged, since Prisma abstracts the
-database engine. This is a deliberate scope call for a take-home exercise,
-not something I didn't notice.
+### Search
+
+Search performs a substring match against the occupant name and searches the full 23-year history, regardless of the calendar range currently displayed. It does not search notes or dates.
+
+### Date Handling
+
+Date-only strings can shift by one day when interpreted as UTC and displayed in local time. Client-side calendar values pass through a shared `parseLocalDate` helper so the displayed date remains stable across time zones.
+
+### Authentication
+
+The application assumes a trusted internal team using one shared scheduling system. It does not currently include user accounts, permissions, or an audit log.
+
+## Testing
+
+The following checks have been completed:
+
+- Type checking with `npx tsc --noEmit`
+- Linting with `npm run lint`
+- Production build with `npm run build`
+- Calendar rendering with the imported dataset
+- Reservation creation, editing, deletion, dragging, and resizing
+- Rejection of overlapping reservations on single-capacity berths
+- Rejection of vessels that exceed a berth's recorded length
+- Berth creation, listing, and deletion
+- Search across historical reservations
+- Vessel-name autocomplete and CSV export
+- Detection of conflicts inserted directly into the database
+
+The repository does not currently include a maintained automated test suite. The first additions should be unit tests for overlap and vessel-fit validation, followed by API integration tests for reservation operations.
+
+## Deployment
+
+The application can run on any Node.js host. A typical deployment requires:
+
+1. Running `npm install && npm run build` during the build step.
+2. Setting `DATABASE_URL` to the deployed database connection string.
+3. Applying database migrations before starting the application.
+4. Running `npm start` to serve the production build.
+
+### Database Persistence
+
+SQLite is convenient for local development, but the database file must be stored on a persistent disk in production. On an ephemeral host, application data will be lost when the instance restarts.
+
+For a production deployment, PostgreSQL is the recommended next step. Prisma allows the application to retain the same data model and validation layer while moving persistence to a managed database.
+
+## Current Limitations
+
+- No authentication or role-based access control
+- No audit history for reservation changes
+- No automated unit or integration test suite
+- Historical vessel lengths are unavailable for many imported reservations
+- Vessel and event types are inferred during import when the source data is ambiguous
+- SQLite requires persistent disk to retain production data
+
+## Future Improvements
+
+- Add unit and API integration tests
+- Move production data to PostgreSQL
+- Add authentication, permissions, and change history
+- Add vessel records with reusable dimensions and metadata
+- Add maintenance closures and configurable turnaround time between bookings
+- Add notifications or approval workflows for reservation changes
