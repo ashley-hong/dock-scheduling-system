@@ -115,14 +115,14 @@ export default function ReservationModal({
 
   return (
     <Modal onClose={onClose}>
-      <h2 className="mb-4 text-lg font-semibold">
+      <h2 className="mb-4 text-[17px] font-bold tracking-tight">
         {isEditing ? "Edit Reservation" : "New Reservation"}
       </h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Berth</label>
+          <label className="mb-1 block text-[12px] font-medium text-[#6b7280]">Berth</label>
           <select
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] focus:border-[#7c3aed] focus:outline-none"
             value={berthId}
             onChange={(e) => setBerthId(e.target.value)}
             required
@@ -137,9 +137,9 @@ export default function ReservationModal({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Type</label>
+            <label className="mb-1 block text-[12px] font-medium text-[#6b7280]">Type</label>
             <select
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] focus:border-[#7c3aed] focus:outline-none"
               value={occupantType}
               onChange={(e) => setOccupantType(e.target.value as OccupantType)}
             >
@@ -149,13 +149,13 @@ export default function ReservationModal({
           </div>
           {occupantType === "VESSEL" && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
+              <label className="mb-1 block text-[12px] font-medium text-[#6b7280]">
                 Vessel length (ft)
               </label>
               <input
                 type="number"
                 min={1}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] font-mono focus:border-[#7c3aed] focus:outline-none"
                 value={vesselLengthFt}
                 onChange={(e) => setVesselLengthFt(e.target.value)}
                 placeholder={selectedBerth?.lengthFt ? `max ${selectedBerth.lengthFt}` : undefined}
@@ -166,13 +166,13 @@ export default function ReservationModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
+          <label className="mb-1 block text-[12px] font-medium text-[#6b7280]">
             {occupantType === "VESSEL" ? "Vessel name" : "Event name"}
           </label>
           <input
             type="text"
             list={occupantType === "VESSEL" ? "vessel-name-options" : undefined}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] focus:border-[#7c3aed] focus:outline-none"
             value={occupantName}
             onChange={(e) => setOccupantName(e.target.value)}
             placeholder={occupantType === "VESSEL" ? "R/V Example" : "Community sail day"}
@@ -189,20 +189,20 @@ export default function ReservationModal({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Start date</label>
+            <label className="mb-1 block text-[12px] font-medium text-[#6b7280]">Start date</label>
             <input
               type="date"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] font-mono focus:border-[#7c3aed] focus:outline-none"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">End date</label>
+            <label className="mb-1 block text-[12px] font-medium text-[#6b7280]">End date</label>
             <input
               type="date"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] font-mono focus:border-[#7c3aed] focus:outline-none"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               required
@@ -211,9 +211,9 @@ export default function ReservationModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Notes</label>
+          <label className="mb-1 block text-[12px] font-medium text-[#6b7280]">Notes</label>
           <textarea
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] focus:border-[#7c3aed] focus:outline-none"
             rows={2}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -221,7 +221,7 @@ export default function ReservationModal({
         </div>
 
         {error && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          <p className="rounded-md bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</p>
         )}
 
         <div className="flex items-center justify-between pt-2">
@@ -231,7 +231,7 @@ export default function ReservationModal({
                 type="button"
                 onClick={handleDelete}
                 disabled={saving}
-                className="rounded-md px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                className="rounded-md px-3 py-2 text-[13px] font-medium text-red-600 hover:bg-red-50"
               >
                 Delete
               </button>
@@ -241,14 +241,14 @@ export default function ReservationModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              className="rounded-md px-3 py-2 text-[13px] font-medium text-[#6b7280] hover:bg-[#f5f5f5]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+              className="rounded-md bg-[#0a0a0a] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#2a2a2a] disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save"}
             </button>

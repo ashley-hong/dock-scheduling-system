@@ -156,8 +156,8 @@ export default function CalendarPage() {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Berth Calendar</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-[22px] font-bold tracking-tight">Berth Calendar</h1>
+          <p className="text-[13px] text-[#6b7280]">
             Hover a booking to see details, drag it to reschedule, or click an empty cell to
             schedule a boat.
           </p>
@@ -166,7 +166,7 @@ export default function CalendarPage() {
           <select
             value={exportRange}
             onChange={(e) => setExportRange(e.target.value)}
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="rounded-md border border-[#e5e5e5] px-2 py-1.5 text-[13px]"
             aria-label="Export range"
           >
             <option value="current">Currently displayed ({DAYS_SHOWN} days)</option>
@@ -176,13 +176,13 @@ export default function CalendarPage() {
           </select>
           <button
             onClick={handleExport}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+            className="rounded-md border border-[#e5e5e5] px-3 py-1.5 text-[13px] font-medium hover:bg-[#fafafa]"
           >
             Export CSV
           </button>
           {berths.length > 0 && (
             <button
-              className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
+              className="rounded-md bg-[#0a0a0a] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[#2a2a2a]"
               onClick={() => setModalState({ berthId: berths[0].id, date: rangeStart })}
             >
               + New Reservation
@@ -198,26 +198,26 @@ export default function CalendarPage() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Find a boat by name (searches all 23 years)"
-            className="w-72 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-72 rounded-md border border-[#e5e5e5] px-3 py-1.5 text-[13px]"
           />
           <button
             type="submit"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+            className="rounded-md border border-[#e5e5e5] px-3 py-1.5 text-[13px] font-medium hover:bg-[#fafafa]"
           >
             Search
           </button>
-          {searchError && <span className="text-sm text-red-600">{searchError}</span>}
+          {searchError && <span className="text-[13px] text-red-600">{searchError}</span>}
         </form>
 
         <div className="flex items-center gap-2">
           <button
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+            className="rounded-md border border-[#e5e5e5] px-3 py-1.5 text-[13px] font-medium hover:bg-[#fafafa]"
             onClick={() => setRangeStart(toISODate(addDays(parseLocalDate(rangeStart), -DAYS_SHOWN)))}
           >
             ← Prev {DAYS_SHOWN}
           </button>
           <button
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+            className="rounded-md border border-[#e5e5e5] px-3 py-1.5 text-[13px] font-medium hover:bg-[#fafafa]"
             onClick={() => setRangeStart(toISODate(new Date()))}
           >
             Today
@@ -226,10 +226,10 @@ export default function CalendarPage() {
             type="date"
             value={rangeStart}
             onChange={(e) => setRangeStart(e.target.value)}
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="rounded-md border border-[#e5e5e5] px-2 py-1.5 text-[13px] font-mono"
           />
           <button
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+            className="rounded-md border border-[#e5e5e5] px-3 py-1.5 text-[13px] font-medium hover:bg-[#fafafa]"
             onClick={() => setRangeStart(toISODate(addDays(parseLocalDate(rangeStart), DAYS_SHOWN)))}
           >
             Next {DAYS_SHOWN} →
@@ -237,23 +237,23 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div className="mb-3 flex gap-4 text-xs text-slate-500">
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded-sm bg-sky-200" /> Vessel
+      <div className="mb-3 flex gap-4 text-[12px] font-mono uppercase tracking-wide text-[#6b7280]">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2 w-2 rounded-full bg-[#7c3aed]" /> Vessel
         </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded-sm bg-amber-200" /> Event
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2 w-2 rounded-full bg-[#f97316]" /> Event
         </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded-sm bg-blue-100" /> Today
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2 w-2 rounded-full bg-[#e5e5e5] ring-1 ring-[#0a0a0a]" /> Today
         </span>
-        <span className="text-slate-400">
+        <span className="normal-case tracking-normal text-[#9ca3af]">
           Drag a booking to move it, or drag its edges to resize. A berth with room for more than
           one boat at a time shows each simultaneous booking as its own row.
         </span>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-[#e5e5e5] bg-white">
         <CalendarGrid
           berths={berths}
           reservations={reservations}

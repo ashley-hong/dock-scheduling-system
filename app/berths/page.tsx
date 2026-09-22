@@ -62,8 +62,8 @@ export default function BerthsPage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="mb-1 text-xl font-semibold">Berths</h1>
-      <p className="mb-6 text-sm text-slate-500">
+      <h1 className="mb-1 text-[22px] font-bold tracking-tight">Berths</h1>
+      <p className="mb-6 text-[13px] text-[#6b7280]">
         Define the physical berths available at the facility. A berth with no fixed
         length (like a multi-slip finger pier) skips the vessel-length check, and a
         berth with unlimited capacity allows more than one simultaneous occupant.
@@ -71,60 +71,60 @@ export default function BerthsPage() {
 
       <form
         onSubmit={handleCreate}
-        className="mb-8 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4"
+        className="mb-8 flex flex-wrap items-end gap-3 rounded-lg border border-[#e5e5e5] bg-white p-4"
       >
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Name</label>
+          <label className="mb-1 block text-[11px] font-medium text-[#6b7280]">Name</label>
           <input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-48 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-48 rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] focus:border-[#7c3aed] focus:outline-none"
             placeholder="North Pier West"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Length (ft)</label>
+          <label className="mb-1 block text-[11px] font-medium text-[#6b7280]">Length (ft)</label>
           <input
             type="number"
             min={1}
             value={lengthFt}
             onChange={(e) => setLengthFt(e.target.value)}
-            className="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-28 rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] font-mono focus:border-[#7c3aed] focus:outline-none"
             placeholder="no fixed length"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Capacity</label>
+          <label className="mb-1 block text-[11px] font-medium text-[#6b7280]">Capacity</label>
           <input
             type="number"
             min={1}
             disabled={unlimited}
             value={capacity}
             onChange={(e) => setCapacity(e.target.value)}
-            className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+            className="w-24 rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] font-mono focus:border-[#7c3aed] focus:outline-none disabled:bg-[#fafafa]"
           />
         </div>
-        <label className="mb-2 flex items-center gap-1.5 text-xs text-slate-600">
+        <label className="mb-2 flex items-center gap-1.5 text-[11px] text-[#6b7280]">
           <input type="checkbox" checked={unlimited} onChange={(e) => setUnlimited(e.target.checked)} />
           Unlimited (multi-slip)
         </label>
         <button
           type="submit"
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          className="rounded-md bg-[#0a0a0a] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#2a2a2a]"
         >
           Add berth
         </button>
       </form>
 
       {error && (
-        <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</p>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <table className="w-full text-sm">
+      <div className="overflow-hidden rounded-lg border border-[#e5e5e5] bg-white">
+        <table className="w-full text-[13px]">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left">
+            <tr className="border-b border-[#e5e5e5] bg-[#fafafa] text-left">
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">Length</th>
               <th className="px-4 py-2 font-medium">Capacity</th>
@@ -133,16 +133,16 @@ export default function BerthsPage() {
           </thead>
           <tbody>
             {berths.map((b) => (
-              <tr key={b.id} className="border-b border-slate-100 last:border-0">
+              <tr key={b.id} className="border-b border-[#f0f0f0] last:border-0">
                 <td className="px-4 py-2 font-medium">{b.name}</td>
-                <td className="px-4 py-2 text-slate-600">
-                  {b.lengthFt ? `${b.lengthFt} ft` : "n/a"}
+                <td className="px-4 py-2 font-mono text-[#6b7280]">
+                  {b.lengthFt ? `${b.lengthFt}ft` : "n/a"}
                 </td>
-                <td className="px-4 py-2 text-slate-600">{b.capacity ?? "unlimited"}</td>
+                <td className="px-4 py-2 font-mono text-[#6b7280]">{b.capacity ?? "unlimited"}</td>
                 <td className="px-4 py-2 text-right">
                   <button
                     onClick={() => handleDelete(b)}
-                    className="text-xs font-medium text-red-600 hover:underline"
+                    className="text-[12px] font-medium text-red-600 hover:underline"
                   >
                     Delete
                   </button>
@@ -151,9 +151,9 @@ export default function BerthsPage() {
             ))}
           </tbody>
         </table>
-        {loading && <p className="p-4 text-sm text-slate-400">Loading...</p>}
+        {loading && <p className="p-4 text-[13px] text-[#9ca3af]">Loading...</p>}
         {!loading && berths.length === 0 && (
-          <p className="p-4 text-sm text-slate-400">No berths yet.</p>
+          <p className="p-4 text-[13px] text-[#9ca3af]">No berths yet.</p>
         )}
       </div>
     </div>

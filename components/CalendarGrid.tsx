@@ -133,7 +133,7 @@ export default function CalendarGrid({
       </colgroup>
       <thead>
         <tr>
-          <th className="sticky left-0 z-10 border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-left font-medium">
+          <th className="sticky left-0 z-10 border-b border-r border-[#e5e5e5] bg-[#fafafa] px-3 py-2 text-left text-[13px] font-medium">
             Berth
           </th>
           {days.map((d) => {
@@ -141,8 +141,8 @@ export default function CalendarGrid({
             return (
               <th
                 key={d.toISOString()}
-                className={`border-b border-slate-200 px-2 py-2 text-center font-medium ${
-                  iso === todayISO ? "bg-blue-100 text-blue-900" : "bg-slate-50"
+                className={`border-b border-[#e5e5e5] px-2 py-2 text-center font-mono text-[12px] font-medium ${
+                  iso === todayISO ? "bg-[#f3ebfe] text-[#7c3aed]" : "bg-[#fafafa] text-[#6b7280]"
                 }`}
               >
                 {format(d, "EEE M/d")}
@@ -171,7 +171,7 @@ export default function CalendarGrid({
                 {laneIndex === 0 && (
                   <td
                     rowSpan={rowCount}
-                    className="sticky left-0 z-10 border-b border-r border-slate-200 bg-white px-3 py-2 align-top font-medium"
+                    className="sticky left-0 z-10 border-b border-r border-[#e5e5e5] bg-white px-3 py-2 align-top text-[13px] font-medium"
                   >
                     <div className="flex items-center gap-1.5">
                       {berth.name}
@@ -179,14 +179,14 @@ export default function CalendarGrid({
                         <Link
                           href="/data-quality"
                           title="This berth has a scheduling conflict - see Data Quality"
-                          className="text-amber-500 hover:text-amber-600"
+                          className="text-[#f97316] hover:text-[#ea580c]"
                         >
                           ⚠
                         </Link>
                       )}
                     </div>
-                    <div className="text-xs font-normal text-slate-400">
-                      {berth.lengthFt ? `${berth.lengthFt} ft` : "multi-slip"}
+                    <div className="font-mono text-[11px] font-normal text-[#9ca3af]">
+                      {berth.lengthFt ? `${berth.lengthFt}ft` : "multi-slip"}
                     </div>
                   </td>
                 )}
@@ -200,8 +200,8 @@ export default function CalendarGrid({
                         data-berth-id={berth.id}
                         data-first-date={iso}
                         data-span={1}
-                        className={`group cursor-pointer border-b border-slate-100 px-1 py-1 align-top transition-colors hover:bg-slate-50 ${
-                          iso === todayISO ? "bg-blue-50/60" : ""
+                        className={`group cursor-pointer border-b border-[#f0f0f0] px-1 py-1 align-top transition-colors hover:bg-[#fafafa] ${
+                          iso === todayISO ? "bg-[#f9f5ff]" : ""
                         }`}
                         onClick={() => onEmptyClick(berth.id, iso)}
                         onDragOver={(e) => e.preventDefault()}
@@ -217,7 +217,7 @@ export default function CalendarGrid({
                           onMove(id, toISODate(newStart), toISODate(newEnd));
                         }}
                       >
-                        <span className="flex h-8 w-full items-center justify-center text-base text-slate-300 opacity-0 transition-opacity group-hover:opacity-100">
+                        <span className="flex h-8 w-full items-center justify-center text-base text-[#d4d4d4] opacity-0 transition-opacity group-hover:opacity-100">
                           +
                         </span>
                       </td>
@@ -237,7 +237,7 @@ export default function CalendarGrid({
                       data-berth-id={berth.id}
                       data-first-date={toISODate(seg.date)}
                       data-span={seg.span}
-                      className="group relative cursor-pointer border-b border-slate-100 px-1 py-1 align-top"
+                      className="group relative cursor-pointer border-b border-[#f0f0f0] px-1 py-1 align-top"
                     >
                       <div
                         draggable={!resizeState}
@@ -248,14 +248,14 @@ export default function CalendarGrid({
                           );
                         }}
                         onClick={() => !isBeingResized && onReservationClick(r)}
-                        className={`relative select-none rounded px-1.5 py-1 text-left text-xs ${
-                          r.occupantType === "VESSEL" ? "bg-sky-200" : "bg-amber-200"
-                        } ${isBeingResized ? "ring-2 ring-slate-500" : ""} transition-opacity hover:opacity-90`}
+                        className={`relative select-none rounded px-1.5 py-1 text-left text-xs text-white ${
+                          r.occupantType === "VESSEL" ? "bg-[#7c3aed]" : "bg-[#f97316]"
+                        } ${isBeingResized ? "ring-2 ring-[#0a0a0a]" : ""} transition-opacity hover:opacity-90`}
                         title={tooltipText(r)}
                       >
                         <span className="block truncate font-medium">{r.occupantName}</span>
                         {subtext(r) && (
-                          <span className="block truncate text-[10px] font-normal text-slate-600/70">
+                          <span className="block truncate font-mono text-[10px] font-normal text-white/75">
                             {subtext(r)}
                           </span>
                         )}
@@ -270,14 +270,14 @@ export default function CalendarGrid({
                         data-reservation-id={r.id}
                         onPointerDown={(e) => startResize(r, "start", e)}
                         onDragStart={(e) => e.preventDefault()}
-                        className="absolute left-0 top-0 z-10 h-full w-2 cursor-col-resize select-none opacity-0 hover:bg-slate-900/20 group-hover:opacity-100"
+                        className="absolute left-0 top-0 z-10 h-full w-2 cursor-col-resize select-none opacity-0 hover:bg-white/20 group-hover:opacity-100"
                       />
                       <span
                         data-resize-handle="end"
                         data-reservation-id={r.id}
                         onPointerDown={(e) => startResize(r, "end", e)}
                         onDragStart={(e) => e.preventDefault()}
-                        className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize select-none opacity-0 hover:bg-slate-900/20 group-hover:opacity-100"
+                        className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize select-none opacity-0 hover:bg-white/20 group-hover:opacity-100"
                       />
                     </td>
                   );

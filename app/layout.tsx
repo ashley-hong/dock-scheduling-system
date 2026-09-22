@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
@@ -20,39 +20,27 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
-        <header className="border-b border-slate-200 bg-white">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-            <Link href="/" className="text-lg font-semibold tracking-tight">
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col bg-white font-sans text-[#0a0a0a]">
+        <header className="border-b border-[#e5e5e5]">
+          <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+            <Link href="/" className="text-[16px] font-bold tracking-tight">
               Harborview Dock Scheduler
             </Link>
-            <nav className="flex gap-1 text-sm font-medium">
-              <Link
-                href="/"
-                className="rounded-md px-3 py-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              >
+            <nav className="flex gap-7 text-[13px] font-medium text-[#6b7280]">
+              <Link href="/" className="transition-colors hover:text-[#0a0a0a]">
                 Calendar
               </Link>
-              <Link
-                href="/berths"
-                className="rounded-md px-3 py-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              >
+              <Link href="/berths" className="transition-colors hover:text-[#0a0a0a]">
                 Berths
               </Link>
-              <Link
-                href="/data-quality"
-                className="rounded-md px-3 py-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              >
+              <Link href="/data-quality" className="transition-colors hover:text-[#0a0a0a]">
                 Data Quality
               </Link>
             </nav>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
+        <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">{children}</main>
       </body>
     </html>
   );

@@ -14,18 +14,18 @@ export default function DataQualityPage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="mb-1 text-xl font-semibold">Data Quality</h1>
-      <p className="mb-6 text-sm text-slate-500">
+      <h1 className="mb-1 text-[22px] font-bold tracking-tight">Data Quality</h1>
+      <p className="mb-6 text-[13px] text-[#6b7280]">
         This is the automated replacement for manually scanning the schedule grid: it
         checks every reservation currently in the system for double-bookings (more
         occupants than a berth&apos;s capacity allows) and vessels assigned to a berth
         they don&apos;t fit.
       </p>
 
-      {conflicts === null && <p className="text-sm text-slate-400">Checking...</p>}
+      {conflicts === null && <p className="text-[13px] text-[#9ca3af]">Checking...</p>}
 
       {conflicts && conflicts.length === 0 && (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-[14px] text-emerald-800">
           No conflicts found. Every berth is within capacity and every vessel fits its
           assigned berth.
         </p>
@@ -36,10 +36,10 @@ export default function DataQualityPage() {
           {conflicts.map((c, i) => (
             <li
               key={i}
-              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-800"
             >
               <div className="mb-1 flex items-center gap-2 font-medium">
-                <span className="rounded bg-red-200 px-1.5 py-0.5 text-xs uppercase tracking-wide">
+                <span className="rounded bg-red-200 px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-wide">
                   {c.type === "OVERLAP" ? "Double booking" : "Length mismatch"}
                 </span>
                 {c.berthName}
