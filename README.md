@@ -13,7 +13,8 @@ Harborview Dock Scheduler is a web application for managing berth reservations a
 - Search the complete reservation history by vessel or event name
 - Browse and filter the complete reservation history by year, berth, or type
 - Print a one-page roster of today's berth occupancy for dock staff
-- Manage berth names, lengths, and capacities
+- Record an optional check-in/check-out time (8:00 AM-5:00 PM, 30-minute increments) on a reservation
+- Manage berth names, lengths, and capacities, including an opt-in rule that lets multiple vessels share one berth if their lengths add up to no more than the berth's length
 - Audit existing reservations for scheduling and vessel-fit conflicts
 - Export reservations as CSV for a selected date range or the complete history
 - Load approximately 2,100 historical reservations from the provided spreadsheet
@@ -75,8 +76,9 @@ The Calendar displays two weeks of reservations, grouped by berth. From this pag
 - Drag either edge of a reservation to change its duration
 - Search for a vessel or event across the complete reservation history
 - Export the visible range, the next 4 or 12 weeks, or the complete history
+- Set an optional check-in/check-out time on a reservation, shown on its bar and in its tooltip
 
-All reservation changes pass through the same server-side validation. If a drag or resize operation is rejected, the calendar restores the previous dates and explains the conflict.
+All reservation changes pass through the same server-side validation. If a drag or resize operation is rejected, the calendar restores the previous dates and explains the conflict. A berth with length-based sharing enabled shows a "shared" badge next to its name.
 
 ### History
 
@@ -88,7 +90,7 @@ The Roster page lists every berth and today's occupant, or "Available" if none, 
 
 ### Berths
 
-The Berths page manages the facility's physical inventory. Each berth has a name, an optional length, and a capacity. A standard berth accepts one reservation at a time. A multi-slip area can allow overlapping reservations.
+The Berths page manages the facility's physical inventory. Each berth has a name, an optional length, and a capacity. A standard berth accepts one reservation at a time. A multi-slip area can allow overlapping reservations. A standard berth can also opt into "sharing by length" (an info popover on the page explains the rule), which lets any number of vessels overlap as long as their lengths add up to no more than the berth's length; this is independent of the multi-slip option and can be toggled per berth at any time.
 
 ### Data Quality
 
@@ -125,11 +127,12 @@ Important files include:
 
 ```text
 Berth
-  id          Int       primary key
-  name        String    unique
-  lengthFt    Int?      null = no single fixed length applies
-  capacity    Int?      1 = one occupant; null = multi-slip area
-  notes       String?
+  id                        Int       primary key
+  name                      String    unique
+  lengthFt                  Int?      null = no single fixed length applies
+  capacity                  Int?      1 = one occupant; null = multi-slip area
+  allowsLengthBasedSharing  Boolean   default false; see "Length-Based Berth Sharing" below
+  notes                     String?
 
 Reservation
   id              Int             primary key
@@ -139,24 +142,28 @@ Reservation
   vesselLengthFt  Int?            null = unknown or not applicable
   startDate       DateTime        inclusive
   endDate         DateTime        inclusive
+  checkInTime     String?         "HH:MM", 8:00-17:00; null = no time recorded
+  checkOutTime    String?         "HH:MM", 8:00-17:00; null = no time recorded
   notes           String?
 ```
 
-Reservations use whole-day, inclusive date ranges because the source schedule is organized by day.
+Reservations use whole-day, inclusive date ranges because the source schedule is organized by day. `checkInTime`/`checkOutTime` are optional same-day detail on top of that, not a replacement for it - see "Check-In/Check-Out Times" below.
 
 ## Validation
 
-The two primary business rules are defined in [`lib/validation.ts`](lib/validation.ts):
+The primary business rules are defined in [`lib/validation.ts`](lib/validation.ts):
 
-1. A reservation cannot cause a berth to exceed its capacity.
+1. A reservation cannot cause a berth to exceed its capacity - unless the berth has length-based sharing enabled, in which case any number of vessels may overlap as long as their lengths add up to no more than the berth's length.
 2. A vessel with a known length cannot be assigned to a shorter berth.
+3. An optional check-in/check-out time must fall within operating hours (8:00 AM-5:00 PM) in 30-minute increments, with check-in before check-out.
 
 Reservation creation, form-based editing, dragging, and resizing all use the same validation functions. The Data Quality page also uses these rules when auditing existing records. Keeping the rules in one module ensures that every entry point evaluates reservations consistently.
 
 Validation failures return structured API responses:
 
-- `409 Conflict` for a capacity violation, including the conflicting reservations
+- `409 Conflict` for a capacity or length-sharing violation, including the conflicting reservations
 - `422 Unprocessable Entity` for a vessel-length violation, including a plain-language explanation
+- `400 Bad Request` for an invalid check-in/check-out time
 
 ## Historical Data Import
 
@@ -213,6 +220,14 @@ Date-only strings can shift by one day when interpreted as UTC and displayed in 
 
 The application assumes a trusted internal team using one shared scheduling system. It does not currently include user accounts, permissions, or an audit log.
 
+### Length-Based Berth Sharing
+
+Checking the imported data directly: zero of the 2,139 historical reservations ever overlap on a single-capacity berth, so there's no historical evidence multiple vessels ever shared one. This is opt-in per berth rather than a default, and only applies when every overlapping reservation is a vessel with a known length; an event or a vessel of unknown length always falls back to one occupant at a time, since fit can't otherwise be determined. It's a pairwise check with no buffer between vessels, by design (matching how it was requested) - there's no clearance requirement, and a rare three-or-more-way overlap whose total exceeds the berth's length even though every pair fits on its own would not be caught by the Data Quality audit; new bookings can't create that case, since each one is checked against the full existing total at write time.
+
+### Check-In/Check-Out Times
+
+Checking the imported data directly: none of the 2,039 historical vessel reservations record a length at all, and the source schedule has no time-of-day information either, so there's nothing to calibrate a time-based rule against historically. Check-in/check-out time is therefore built as optional, informational infrastructure for new reservations going forward: a "HH:MM" value validated to fall within operating hours (8:00 AM-5:00 PM) in 30-minute increments. It is deliberately not wired into overlap detection, which still operates on whole days - the calendar is a day-grid and can't show sub-day granularity without a different view, and a same-day, back-to-back turnaround (e.g., one boat out by check-out, another in an hour later) is a real scheduling case that whole-day overlap checking can't represent on its own. Making the field capturable now means that logic can be added later without a schema change.
+
 ## Testing
 
 The following checks have been completed:
@@ -228,6 +243,8 @@ The following checks have been completed:
 - Search across historical reservations
 - Vessel-name autocomplete and CSV export
 - Detection of conflicts inserted directly into the database
+- Length-based berth sharing: acceptance when combined vessel lengths fit, rejection when they don't, and fallback to one-at-a-time for an event or an unknown-length vessel (14 scenarios covering these cases, plus confirming ordinary and multi-slip berths are unaffected)
+- Check-in/check-out time validation: acceptance inside operating hours on a 30-minute increment, rejection outside operating hours, off-increment, or out of order
 
 The repository does not currently include a maintained automated test suite. The first additions should be unit tests for overlap and vessel-fit validation, followed by API integration tests for reservation operations.
 
@@ -240,7 +257,7 @@ Deploying to Vercel:
 1. Push the repository to GitHub and import it into Vercel.
 2. Add a Postgres database from Vercel's Storage tab (or any managed Postgres provider) and copy its connection string into the `DATABASE_URL` environment variable in the Vercel project settings.
 3. Deploy. Vercel runs `npm install && npm run build`, and `postinstall` regenerates the Prisma client automatically.
-4. Once deployed, apply the schema and load the seed data by running `npm run db:setup` locally with `DATABASE_URL` temporarily set to the same production connection string.
+4. Once deployed, apply the schema and load the seed data by running `npm run db:setup` locally with `DATABASE_URL` temporarily set to the same production connection string. Re-run this (or just `npm run db:migrate`) any time `prisma/schema.prisma` changes, so the production database's columns stay in sync with the code.
 
 ### Database Persistence
 
@@ -259,5 +276,7 @@ The application previously used SQLite for local development. SQLite files are c
 - Add unit and API integration tests
 - Add authentication, permissions, and change history
 - Add vessel records with reusable dimensions and metadata
-- Add maintenance closures and configurable turnaround time between bookings
+- Extend overlap detection to use check-in/check-out times (with a configurable turnaround buffer) instead of whole-day granularity, and add a same-day timeline view to the calendar to show it
+- Track combined-length overlaps as a group instead of pairwise, so a three-or-more-way length-sharing violation is caught by the Data Quality audit
+- Add maintenance closures between bookings
 - Add notifications or approval workflows for reservation changes
