@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import {
+  addDaysToIso,
   assignLanes,
   buildSegments,
+  daysBetween,
   formatTimeLabel,
   nextCheckInAfter,
   subtext,
@@ -23,6 +25,27 @@ type ResizeState = {
   previewStart: string;
   previewEnd: string;
 };
+
+type MoveState = {
+  reservation: Reservation;
+  originalStart: string;
+  originalEnd: string;
+  durationDays: number;
+  // Which day within the reservation's span was grabbed (0 = the start
+  // date), so the drag keeps that same day under the pointer instead of
+  // always snapping the bar's start date to wherever the pointer lands.
+  grabOffsetDays: number;
+  previewStart: string;
+  previewEnd: string;
+  pointerDownX: number;
+  pointerDownY: number;
+  // False until the pointer has moved past a small threshold - lets a
+  // plain click (no movement) still open the edit modal instead of always
+  // being treated as a (zero-distance) move.
+  hasMoved: boolean;
+};
+
+const DRAG_THRESHOLD_PX = 4;
 
 type Props = {
   berths: Berth[];
@@ -71,26 +94,16 @@ export default function CalendarGrid({
 }: Props) {
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const resizeRef = useRef<ResizeState | null>(null);
-  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
-  const [draggingBerthId, setDraggingBerthId] = useState<string | null>(null);
+  const [moveState, setMoveState] = useState<MoveState | null>(null);
+  const moveRef = useRef<MoveState | null>(null);
 
   useEffect(() => {
     resizeRef.current = resizeState;
   }, [resizeState]);
 
-  // Native drag-and-drop gives no visual feedback about which cell will
-  // receive the drop, which is exactly what made it feel imprecise -
-  // dragOverKey highlights the cell currently under the pointer. A window
-  // "dragend" listener clears it even if the drop lands somewhere that
-  // never fires its own dragLeave (an occupied cell, or outside the table).
   useEffect(() => {
-    function clear() {
-      setDragOverKey(null);
-      setDraggingBerthId(null);
-    }
-    window.addEventListener("dragend", clear);
-    return () => window.removeEventListener("dragend", clear);
-  }, []);
+    moveRef.current = moveState;
+  }, [moveState]);
 
   useEffect(() => {
     if (!resizeState) return;
@@ -142,11 +155,92 @@ export default function CalendarGrid({
     });
   }
 
-  function displayDates(r: Reservation): { start: string; end: string } {
-    if (resizeState?.reservationId === r.id) {
-      return { start: resizeState.previewStart, end: resizeState.previewEnd };
+  // Moving a reservation went through native HTML5 drag-and-drop originally,
+  // but that gave no reliable visual feedback (dragenter/dragleave fire
+  // erratically around child elements like the "+" icon, causing flicker)
+  // and no control over how the bar tracked the pointer - the same class of
+  // problem resize hit and fixed by switching to pointer events instead.
+  // This mirrors that: track the pointer directly, and feed the live
+  // preview position into the same rendering path as resize already uses,
+  // so the bar itself visually slides along the row instead of a separate
+  // cell lighting up.
+  useEffect(() => {
+    if (!moveState) return;
+    document.body.style.cursor = "grabbing";
+
+    function handlePointerMove(e: PointerEvent) {
+      const current = moveRef.current;
+      if (!current) return;
+      if (
+        !current.hasMoved &&
+        Math.abs(e.clientX - current.pointerDownX) < DRAG_THRESHOLD_PX &&
+        Math.abs(e.clientY - current.pointerDownY) < DRAG_THRESHOLD_PX
+      ) {
+        return;
+      }
+
+      const hit = dateUnderPointer(e.clientX, e.clientY);
+      // A move can't change berths, so outside this berth's rows the bar
+      // just stops tracking the pointer instead of jumping somewhere wrong.
+      if (!hit || hit.berthId !== current.reservation.berthId) {
+        if (!current.hasMoved) setMoveState({ ...current, hasMoved: true });
+        return;
+      }
+      const newStart = addDaysToIso(hit.dateISO, -current.grabOffsetDays);
+      const newEnd = addDaysToIso(newStart, current.durationDays);
+      setMoveState({ ...current, hasMoved: true, previewStart: newStart, previewEnd: newEnd });
     }
-    return { start: r.startDate.slice(0, 10), end: r.endDate.slice(0, 10) };
+
+    function handlePointerUp() {
+      const current = moveRef.current;
+      if (current) {
+        if (current.hasMoved) {
+          if (
+            current.previewStart !== current.originalStart ||
+            current.previewEnd !== current.originalEnd
+          ) {
+            onMove(current.reservation.id, current.previewStart, current.previewEnd);
+          }
+        } else {
+          // No real movement happened - treat it as a click.
+          onReservationClick(current.reservation);
+        }
+      }
+      setMoveState(null);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      document.body.style.cursor = "";
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(moveState)]);
+
+  function startMove(r: Reservation, e: React.PointerEvent) {
+    if (resizeState) return;
+    e.preventDefault();
+    const startISO = r.startDate.slice(0, 10);
+    const endISO = r.endDate.slice(0, 10);
+    const durationDays = daysBetween(startISO, endISO);
+    const hit = dateUnderPointer(e.clientX, e.clientY);
+    const grabOffsetDays = hit
+      ? Math.max(0, Math.min(durationDays, daysBetween(startISO, hit.dateISO)))
+      : 0;
+    setMoveState({
+      reservation: r,
+      originalStart: startISO,
+      originalEnd: endISO,
+      durationDays,
+      grabOffsetDays,
+      previewStart: startISO,
+      previewEnd: endISO,
+      pointerDownX: e.clientX,
+      pointerDownY: e.clientY,
+      hasMoved: false,
+    });
   }
 
   return (
@@ -181,11 +275,18 @@ export default function CalendarGrid({
         {berths.map((berth) => {
           const berthReservations = reservations
             .filter((r) => r.berthId === berth.id)
-            // While actively resizing, feed the *preview* dates into lane
-            // assignment/segments so the bar visually grows/shrinks live.
-            .map((r) => (resizeState?.reservationId === r.id
-              ? { ...r, startDate: resizeState.previewStart, endDate: resizeState.previewEnd }
-              : r));
+            // While actively resizing or moving, feed the *preview* dates
+            // into lane assignment/segments so the bar visually grows,
+            // shrinks, or slides live instead of jumping only on drop.
+            .map((r) => {
+              if (resizeState?.reservationId === r.id) {
+                return { ...r, startDate: resizeState.previewStart, endDate: resizeState.previewEnd };
+              }
+              if (moveState?.reservation.id === r.id) {
+                return { ...r, startDate: moveState.previewStart, endDate: moveState.previewEnd };
+              }
+              return r;
+            });
           const lanes = assignLanes(berthReservations);
           const rowCount = Math.max(1, lanes.length);
           const hasConflict = conflictBerthIds.has(berth.id);
@@ -243,10 +344,6 @@ export default function CalendarGrid({
                 {segments.map((seg) => {
                   if (seg.type === "empty") {
                     const iso = toISODate(seg.date);
-                    const cellKey = `${berth.id}-${iso}`;
-                    const isValidTarget = draggingBerthId === null || draggingBerthId === berth.id;
-                    const isDragTarget = dragOverKey === cellKey && isValidTarget;
-                    const isInvalidTarget = dragOverKey === cellKey && !isValidTarget;
                     return (
                       <td
                         key={iso}
@@ -254,50 +351,20 @@ export default function CalendarGrid({
                         data-berth-id={berth.id}
                         data-first-date={iso}
                         data-span={1}
-                        className={`group border-b border-[#f0f0f0] px-1 py-1 align-top transition-colors hover:bg-[#fafafa] ${
-                          isDragTarget
-                            ? "cursor-pointer bg-[#f3ebfe] ring-2 ring-inset ring-[#7c3aed]"
-                            : isInvalidTarget
-                            ? "cursor-not-allowed bg-[#fef2f2]"
-                            : iso === todayISO
-                            ? "cursor-pointer bg-[#f9f5ff]"
-                            : "cursor-pointer"
+                        className={`group cursor-pointer border-b border-[#f0f0f0] px-1 py-1 align-top transition-colors hover:bg-[#fafafa] ${
+                          iso === todayISO ? "bg-[#f9f5ff]" : ""
                         }`}
                         onClick={() => onEmptyClick(berth.id, iso)}
-                        onDragEnter={() => setDragOverKey(cellKey)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDragLeave={() => setDragOverKey((k) => (k === cellKey ? null : k))}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          setDragOverKey(null);
-                          const data = e.dataTransfer.getData("text/plain");
-                          if (!data) return;
-                          const { id, berthId, durationDays } = JSON.parse(data);
-                          if (berthId !== berth.id) return;
-                          const newStart = new Date(iso);
-                          const newEnd = new Date(iso);
-                          newEnd.setDate(newEnd.getDate() + durationDays);
-                          onMove(id, toISODate(newStart), toISODate(newEnd));
-                        }}
                       >
-                        <span
-                          className={`flex h-8 w-full items-center justify-center text-base transition-opacity ${
-                            isDragTarget
-                              ? "text-[#7c3aed] opacity-100"
-                              : "text-[#d4d4d4] opacity-0 group-hover:opacity-100"
-                          }`}
-                        >
+                        <span className="flex h-8 w-full items-center justify-center text-base text-[#d4d4d4] opacity-0 transition-opacity group-hover:opacity-100">
                           +
                         </span>
                       </td>
                     );
                   }
                   const r = seg.reservation;
-                  const { start, end } = displayDates(r);
-                  const durationDays = Math.round(
-                    (new Date(end).getTime() - new Date(start).getTime()) / 86_400_000
-                  );
                   const isBeingResized = resizeState?.reservationId === r.id;
+                  const isBeingMoved = moveState?.reservation.id === r.id;
                   return (
                     <td
                       key={r.id}
@@ -309,18 +376,12 @@ export default function CalendarGrid({
                       className="group relative cursor-pointer border-b border-[#f0f0f0] px-1 py-1 align-top"
                     >
                       <div
-                        draggable={!resizeState}
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData(
-                            "text/plain",
-                            JSON.stringify({ id: r.id, berthId: r.berthId, durationDays })
-                          );
-                          setDraggingBerthId(r.berthId);
-                        }}
-                        onClick={() => !isBeingResized && onReservationClick(r)}
-                        className={`relative select-none rounded px-1.5 py-1 text-left text-xs text-white ${
+                        onPointerDown={(e) => startMove(r, e)}
+                        className={`relative touch-none select-none rounded px-1.5 py-1 text-left text-xs text-white ${
                           r.occupantType === "VESSEL" ? "bg-[#7c3aed]" : "bg-[#f97316]"
-                        } ${isBeingResized ? "ring-2 ring-[#0a0a0a]" : ""} transition-opacity hover:opacity-90`}
+                        } ${isBeingResized || isBeingMoved ? "ring-2 ring-[#0a0a0a]" : ""} ${
+                          isBeingMoved ? "cursor-grabbing opacity-90 shadow-lg" : "cursor-grab"
+                        } transition-opacity hover:opacity-90`}
                         title={tooltipText(r)}
                       >
                         <span className="block truncate font-medium">{r.occupantName}</span>
@@ -351,23 +412,19 @@ export default function CalendarGrid({
                           +
                         </button>
                       )}
-                      {/* Resize handles are siblings of the draggable bar, not
-                          children of it - nesting them inside a draggable
-                          element lets the browser's native drag gesture hijack
-                          the mousedown before our pointer-based resize logic
-                          ever sees it. */}
+                      {/* Resize handles are siblings of the bar, not
+                          children of it, so their pointerDown doesn't also
+                          trigger the bar's own startMove. */}
                       <span
                         data-resize-handle="start"
                         data-reservation-id={r.id}
                         onPointerDown={(e) => startResize(r, "start", e)}
-                        onDragStart={(e) => e.preventDefault()}
                         className="absolute left-0 top-0 z-10 h-full w-2 cursor-col-resize select-none opacity-0 hover:bg-white/20 group-hover:opacity-100"
                       />
                       <span
                         data-resize-handle="end"
                         data-reservation-id={r.id}
                         onPointerDown={(e) => startResize(r, "end", e)}
-                        onDragStart={(e) => e.preventDefault()}
                         className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize select-none opacity-0 hover:bg-white/20 group-hover:opacity-100"
                       />
                     </td>
