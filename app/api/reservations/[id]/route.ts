@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkOverlap, checkLengthFit, OverlapError, isTransactionConflict } from "@/lib/validation";
+import {
+  checkOverlap,
+  checkLengthFit,
+  checkTimeWindow,
+  OverlapError,
+  isTransactionConflict,
+} from "@/lib/validation";
 import { parseDateOnly } from "@/lib/dates";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -36,6 +42,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       : body.vesselLengthFt === null
       ? null
       : Number(body.vesselLengthFt);
+  const checkInTime = body.checkInTime === undefined ? existing.checkInTime : body.checkInTime || null;
+  const checkOutTime =
+    body.checkOutTime === undefined ? existing.checkOutTime : body.checkOutTime || null;
 
   if (start > end) {
     return NextResponse.json({ error: "Start date must be on or before end date." }, { status: 400 });
@@ -55,10 +64,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  const timeCheck = checkTimeWindow(checkInTime, checkOutTime);
+  if (!timeCheck.ok) {
+    return NextResponse.json({ error: "INVALID_TIME", reason: timeCheck.reason }, { status: 400 });
+  }
+
   try {
     const updated = await prisma.$transaction(
       async (tx) => {
-        const overlapCheck = await checkOverlap(berth, start, end, id, tx);
+        const overlapCheck = await checkOverlap(berth, start, end, id, tx, {
+          occupantType,
+          vesselLengthFt,
+        });
         if (!overlapCheck.ok) {
           throw new OverlapError(overlapCheck.conflicts);
         }
@@ -71,6 +88,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             vesselLengthFt,
             startDate: start,
             endDate: end,
+            checkInTime,
+            checkOutTime,
             notes: body.notes === undefined ? undefined : body.notes || null,
           },
           include: { berth: true },

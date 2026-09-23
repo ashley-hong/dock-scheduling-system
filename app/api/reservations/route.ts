@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkOverlap, checkLengthFit, OverlapError, isTransactionConflict } from "@/lib/validation";
+import {
+  checkOverlap,
+  checkLengthFit,
+  checkTimeWindow,
+  OverlapError,
+  isTransactionConflict,
+} from "@/lib/validation";
 import { parseDateOnly } from "@/lib/dates";
 import type { OccupantType } from "@prisma/client";
 
@@ -43,6 +49,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const { berthId, occupantName, occupantType, vesselLengthFt, startDate, endDate, notes } = body;
+  const checkInTime = body.checkInTime || null;
+  const checkOutTime = body.checkOutTime || null;
 
   if (!berthId || !occupantName || !occupantType || !startDate || !endDate) {
     return NextResponse.json(
@@ -82,6 +90,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const timeCheck = checkTimeWindow(checkInTime, checkOutTime);
+  if (!timeCheck.ok) {
+    return NextResponse.json({ error: "INVALID_TIME", reason: timeCheck.reason }, { status: 400 });
+  }
+
   try {
     // Serializable so the overlap check and the write are atomic together:
     // without this, two nearly-simultaneous bookings for the same dates
@@ -89,7 +102,10 @@ export async function POST(request: NextRequest) {
     // real double-booking despite the check.
     const reservation = await prisma.$transaction(
       async (tx) => {
-        const overlapCheck = await checkOverlap(berth, start, end, undefined, tx);
+        const overlapCheck = await checkOverlap(berth, start, end, undefined, tx, {
+          occupantType,
+          vesselLengthFt: parsedVesselLength,
+        });
         if (!overlapCheck.ok) {
           throw new OverlapError(overlapCheck.conflicts);
         }
@@ -101,6 +117,8 @@ export async function POST(request: NextRequest) {
             vesselLengthFt: parsedVesselLength,
             startDate: start,
             endDate: end,
+            checkInTime,
+            checkOutTime,
             notes: notes || null,
           },
           include: { berth: true },

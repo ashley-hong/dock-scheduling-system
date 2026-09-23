@@ -8,7 +8,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { name, lengthFt, capacity, notes } = body;
+  const { name, lengthFt, capacity, allowsLengthBasedSharing, notes } = body;
 
   if (!name || typeof name !== "string") {
     return NextResponse.json({ error: "Name is required." }, { status: 400 });
@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
       name,
       lengthFt: lengthFt === "" || lengthFt == null ? null : Number(lengthFt),
       capacity: capacity === "" || capacity == null ? 1 : Number(capacity),
+      allowsLengthBasedSharing: Boolean(allowsLengthBasedSharing),
       notes: notes || null,
     },
   });

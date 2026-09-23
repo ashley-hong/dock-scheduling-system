@@ -6,7 +6,7 @@ type RouteParams = { params: Promise<{ id: string }> };
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const body = await request.json();
-  const { name, lengthFt, capacity, notes } = body;
+  const { name, lengthFt, capacity, allowsLengthBasedSharing, notes } = body;
 
   const berth = await prisma.berth.findUnique({ where: { id } });
   if (!berth) {
@@ -39,6 +39,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           : capacity === null
           ? null
           : Number(capacity),
+      allowsLengthBasedSharing:
+        allowsLengthBasedSharing === undefined ? undefined : Boolean(allowsLengthBasedSharing),
       notes: notes === undefined ? undefined : notes || null,
     },
   });
