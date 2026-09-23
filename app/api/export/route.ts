@@ -36,6 +36,8 @@ export async function GET(request: NextRequest) {
     "Vessel Length (ft)",
     "Start Date",
     "End Date",
+    "Check-In Time",
+    "Check-Out Time",
     "Notes",
   ];
 
@@ -48,6 +50,8 @@ export async function GET(request: NextRequest) {
       r.vesselLengthFt != null ? String(r.vesselLengthFt) : "",
       r.startDate.toISOString().slice(0, 10),
       r.endDate.toISOString().slice(0, 10),
+      r.checkInTime ?? "",
+      r.checkOutTime ?? "",
       r.notes ?? "",
     ]
       .map(csvEscape)
