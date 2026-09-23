@@ -204,6 +204,8 @@ export default function HistoryPage() {
             vesselLengthFt: selected.vesselLengthFt,
             startDate: selected.startDate.slice(0, 10),
             endDate: selected.endDate.slice(0, 10),
+            checkInTime: selected.checkInTime,
+            checkOutTime: selected.checkOutTime,
             notes: selected.notes,
           }}
           onClose={() => setSelected(null)}

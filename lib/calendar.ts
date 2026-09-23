@@ -33,6 +33,15 @@ export function daysBetween(startIso: string, endIso: string): number {
   return Math.round((end.getTime() - start.getTime()) / 86_400_000);
 }
 
+/** Formats a "HH:MM" 24-hour time (as stored/validated in
+ * lib/validation.ts's checkTimeWindow) as a 12-hour label, e.g. "8:30 AM". */
+export function formatTimeLabel(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const period = h < 12 ? "AM" : "PM";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
 export function subtext(r: Reservation): string {
   const parts: string[] = [];
   if (r.occupantType === "VESSEL" && r.vesselLengthFt) parts.push(`${r.vesselLengthFt} ft`);
@@ -40,6 +49,10 @@ export function subtext(r: Reservation): string {
   const end = r.endDate.slice(0, 10);
   if (start !== end) {
     parts.push(`${format(parseLocalDate(start), "M/d")}–${format(parseLocalDate(end), "M/d")}`);
+  } else if (r.checkInTime || r.checkOutTime) {
+    parts.push(
+      [r.checkInTime, r.checkOutTime].filter(Boolean).map((t) => formatTimeLabel(t!)).join("–")
+    );
   }
   return parts.join(" · ");
 }
@@ -54,6 +67,11 @@ export function tooltipText(r: Reservation): string {
       : "Event",
     start === end ? start : `${start} – ${end}`,
   ];
+  if (r.checkInTime || r.checkOutTime) {
+    const inLabel = r.checkInTime ? formatTimeLabel(r.checkInTime) : "?";
+    const outLabel = r.checkOutTime ? formatTimeLabel(r.checkOutTime) : "?";
+    lines.push(`Check-in ${inLabel} · Check-out ${outLabel}`);
+  }
   if (r.notes) lines.push(r.notes);
   return lines.join("\n");
 }

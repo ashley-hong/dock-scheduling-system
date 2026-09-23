@@ -312,6 +312,8 @@ export default function CalendarPage() {
                   vesselLengthFt: modalState.reservation.vesselLengthFt,
                   startDate: modalState.reservation.startDate.slice(0, 10),
                   endDate: modalState.reservation.endDate.slice(0, 10),
+                  checkInTime: modalState.reservation.checkInTime,
+                  checkOutTime: modalState.reservation.checkOutTime,
                   notes: modalState.reservation.notes,
                 }
               : {

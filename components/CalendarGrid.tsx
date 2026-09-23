@@ -184,6 +184,14 @@ export default function CalendarGrid({
                           ⚠
                         </Link>
                       )}
+                      {berth.allowsLengthBasedSharing && (
+                        <span
+                          title="Multiple vessels may share this berth if their lengths fit together"
+                          className="rounded-full bg-[#f3ebfe] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[#7c3aed]"
+                        >
+                          shared
+                        </span>
+                      )}
                     </div>
                     <div className="font-mono text-[11px] font-normal text-[#9ca3af]">
                       {berth.lengthFt ? `${berth.lengthFt}ft` : "multi-slip"}

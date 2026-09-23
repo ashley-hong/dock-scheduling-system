@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
+import InfoPopover from "@/components/InfoPopover";
+import { formatTimeLabel } from "@/lib/calendar";
 import type { Berth, OccupantType, Reservation } from "@/lib/types";
+
+// 30-minute increments across operating hours (8:00-17:00), matching
+// lib/validation.ts's checkTimeWindow.
+const TIME_SLOTS: string[] = [];
+for (let minutes = 8 * 60; minutes <= 17 * 60; minutes += 30) {
+  const h = String(Math.floor(minutes / 60)).padStart(2, "0");
+  const m = String(minutes % 60).padStart(2, "0");
+  TIME_SLOTS.push(`${h}:${m}`);
+}
 
 type Props = {
   berths: Berth[];
@@ -14,6 +25,8 @@ type Props = {
     vesselLengthFt?: number | null;
     startDate: string;
     endDate: string;
+    checkInTime?: string | null;
+    checkOutTime?: string | null;
     notes?: string | null;
   };
   onClose: () => void;
@@ -37,6 +50,8 @@ export default function ReservationModal({
   );
   const [startDate, setStartDate] = useState(initial.startDate);
   const [endDate, setEndDate] = useState(initial.endDate);
+  const [checkInTime, setCheckInTime] = useState(initial.checkInTime ?? "");
+  const [checkOutTime, setCheckOutTime] = useState(initial.checkOutTime ?? "");
   const [notes, setNotes] = useState(initial.notes ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -63,6 +78,8 @@ export default function ReservationModal({
       vesselLengthFt: occupantType === "VESSEL" && vesselLengthFt !== "" ? Number(vesselLengthFt) : null,
       startDate,
       endDate,
+      checkInTime: checkInTime || null,
+      checkOutTime: checkOutTime || null,
       notes: notes || null,
     };
 
@@ -89,6 +106,8 @@ export default function ReservationModal({
           }
         } else if (data.error === "LENGTH_MISMATCH") {
           setError(data.reason ?? "Vessel does not fit this berth.");
+        } else if (data.error === "INVALID_TIME") {
+          setError(data.reason ?? "Check-in/check-out time is invalid.");
         } else {
           setError(data.error ?? "Something went wrong.");
         }
@@ -137,6 +156,11 @@ export default function ReservationModal({
               </option>
             ))}
           </select>
+          {selectedBerth?.allowsLengthBasedSharing && (
+            <p className="mt-1 text-[11px] text-[#7c3aed]">
+              This berth allows multiple vessels at once if their lengths fit together.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -212,6 +236,48 @@ export default function ReservationModal({
               onChange={(e) => setEndDate(e.target.value)}
               required
             />
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center gap-1.5">
+            <span className="text-[12px] font-medium text-[#6b7280]">
+              Check-in / check-out time (optional)
+            </span>
+            <InfoPopover label="">
+              <p className="mb-1 font-medium text-[#0a0a0a]">Check-in / check-out time</p>
+              <p>
+                Optional. If set, times must fall between 8:00 AM and 5:00 PM in 30-minute
+                increments, with check-in before check-out. Leaving both blank keeps this as a
+                whole-day booking, same as before this option existed.
+              </p>
+            </InfoPopover>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={checkInTime}
+              onChange={(e) => setCheckInTime(e.target.value)}
+              className="w-full rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] font-mono focus:border-[#7c3aed] focus:outline-none"
+            >
+              <option value="">No check-in time</option>
+              {TIME_SLOTS.map((t) => (
+                <option key={t} value={t}>
+                  {formatTimeLabel(t)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={checkOutTime}
+              onChange={(e) => setCheckOutTime(e.target.value)}
+              className="w-full rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] font-mono focus:border-[#7c3aed] focus:outline-none"
+            >
+              <option value="">No check-out time</option>
+              {TIME_SLOTS.map((t) => (
+                <option key={t} value={t}>
+                  {formatTimeLabel(t)}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

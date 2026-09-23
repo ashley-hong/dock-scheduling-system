@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import InfoPopover from "@/components/InfoPopover";
 import type { Berth } from "@/lib/types";
 
 export default function BerthsPage() {
@@ -12,6 +13,7 @@ export default function BerthsPage() {
   const [lengthFt, setLengthFt] = useState("");
   const [capacity, setCapacity] = useState("1");
   const [unlimited, setUnlimited] = useState(false);
+  const [allowsLengthBasedSharing, setAllowsLengthBasedSharing] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -35,6 +37,7 @@ export default function BerthsPage() {
         name,
         lengthFt: lengthFt === "" ? null : Number(lengthFt),
         capacity: unlimited ? null : Number(capacity) || 1,
+        allowsLengthBasedSharing: unlimited ? false : allowsLengthBasedSharing,
       }),
     });
     if (!res.ok) {
@@ -46,6 +49,7 @@ export default function BerthsPage() {
     setLengthFt("");
     setCapacity("1");
     setUnlimited(false);
+    setAllowsLengthBasedSharing(false);
     load();
   }
 
@@ -58,6 +62,15 @@ export default function BerthsPage() {
       return;
     const res = await fetch(`/api/berths/${berth.id}`, { method: "DELETE" });
     if (res.ok) load();
+  }
+
+  async function toggleSharing(berth: Berth) {
+    await fetch(`/api/berths/${berth.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ allowsLengthBasedSharing: !berth.allowsLengthBasedSharing }),
+    });
+    load();
   }
 
   return (
@@ -109,6 +122,27 @@ export default function BerthsPage() {
           <input type="checkbox" checked={unlimited} onChange={(e) => setUnlimited(e.target.checked)} />
           Unlimited (multi-slip)
         </label>
+        <div className="mb-2 flex items-center gap-1.5">
+          <label className="flex items-center gap-1.5 text-[11px] text-[#6b7280]">
+            <input
+              type="checkbox"
+              disabled={unlimited}
+              checked={allowsLengthBasedSharing}
+              onChange={(e) => setAllowsLengthBasedSharing(e.target.checked)}
+            />
+            Allow sharing by length
+          </label>
+          <InfoPopover label="">
+            <p className="mb-1 font-medium text-[#0a0a0a]">Sharing by length</p>
+            <p>
+              Instead of one vessel at a time, any number of vessels may share this berth at
+              once as long as their lengths add up to no more than the berth&apos;s length. No
+              gap is required between them. It only applies when every vessel involved has a
+              known length - anything else (an event, or an unknown length) falls back to one
+              at a time.
+            </p>
+          </InfoPopover>
+        </div>
         <button
           type="submit"
           className="rounded-md bg-[#0a0a0a] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#2a2a2a]"
@@ -128,6 +162,7 @@ export default function BerthsPage() {
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">Length</th>
               <th className="px-4 py-2 font-medium">Capacity</th>
+              <th className="px-4 py-2 font-medium">Sharing by length</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
@@ -139,6 +174,20 @@ export default function BerthsPage() {
                   {b.lengthFt ? `${b.lengthFt}ft` : "n/a"}
                 </td>
                 <td className="px-4 py-2 font-mono text-[#6b7280]">{b.capacity ?? "unlimited"}</td>
+                <td className="px-4 py-2">
+                  {b.capacity === null ? (
+                    <span className="text-[#9ca3af]">n/a (multi-slip)</span>
+                  ) : (
+                    <label className="flex items-center gap-1.5 text-[#6b7280]">
+                      <input
+                        type="checkbox"
+                        checked={b.allowsLengthBasedSharing}
+                        onChange={() => toggleSharing(b)}
+                      />
+                      {b.allowsLengthBasedSharing ? "On" : "Off"}
+                    </label>
+                  )}
+                </td>
                 <td className="px-4 py-2 text-right">
                   <button
                     onClick={() => handleDelete(b)}
