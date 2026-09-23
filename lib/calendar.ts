@@ -42,6 +42,17 @@ export function formatTimeLabel(time: string): string {
   return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+/** The next 30-minute slot at least an hour after `checkOutTime`, or null
+ * if that would fall after operating hours (5:00 PM) - matching
+ * lib/validation.ts's checkTimeWindow bounds. Used to suggest a same-day
+ * follow-up booking's check-in time right after a berth frees up. */
+export function nextCheckInAfter(checkOutTime: string): string | null {
+  const [h, m] = checkOutTime.split(":").map(Number);
+  const minutes = h * 60 + m + 60;
+  if (minutes > 17 * 60) return null;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
 export function subtext(r: Reservation): string {
   const parts: string[] = [];
   if (r.occupantType === "VESSEL" && r.vesselLengthFt) parts.push(`${r.vesselLengthFt} ft`);

@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { assignLanes, buildSegments, subtext, toISODate, tooltipText } from "@/lib/calendar";
+import {
+  assignLanes,
+  buildSegments,
+  formatTimeLabel,
+  nextCheckInAfter,
+  subtext,
+  toISODate,
+  tooltipText,
+} from "@/lib/calendar";
 import type { Berth, Reservation } from "@/lib/types";
 
 type ResizeState = {
@@ -26,6 +34,7 @@ type Props = {
   onReservationClick: (reservation: Reservation) => void;
   onMove: (reservationId: string, newStartISO: string, newEndISO: string) => void;
   onResize: (reservationId: string, newStartISO: string, newEndISO: string) => void;
+  onAddFollowUp: (berthId: string, dateISO: string, suggestedCheckInTime: string) => void;
 };
 
 /** Reads the day a pointer is currently over, even mid-drag across a
@@ -58,6 +67,7 @@ export default function CalendarGrid({
   onReservationClick,
   onMove,
   onResize,
+  onAddFollowUp,
 }: Props) {
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const resizeRef = useRef<ResizeState | null>(null);
@@ -268,6 +278,25 @@ export default function CalendarGrid({
                           </span>
                         )}
                       </div>
+                      {r.checkOutTime && nextCheckInAfter(r.checkOutTime) && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddFollowUp(
+                              r.berthId,
+                              r.endDate.slice(0, 10),
+                              nextCheckInAfter(r.checkOutTime!)!
+                            );
+                          }}
+                          title={`Book a new reservation on this berth starting ${formatTimeLabel(
+                            nextCheckInAfter(r.checkOutTime!)!
+                          )}`}
+                          className="mt-1 block w-full truncate rounded border border-dashed border-[#d4d4d4] px-1.5 py-0.5 text-left text-[10px] font-medium text-[#9ca3af] hover:border-[#7c3aed] hover:text-[#7c3aed]"
+                        >
+                          + Book after {formatTimeLabel(nextCheckInAfter(r.checkOutTime!)!)}
+                        </button>
+                      )}
                       {/* Resize handles are siblings of the draggable bar, not
                           children of it - nesting them inside a draggable
                           element lets the browser's native drag gesture hijack

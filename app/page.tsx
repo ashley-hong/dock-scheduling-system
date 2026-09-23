@@ -23,6 +23,7 @@ export default function CalendarPage() {
     reservation?: Reservation;
     berthId?: string;
     date?: string;
+    checkInTime?: string;
   }>(null);
 
   const todayISO = toISODate(new Date());
@@ -279,6 +280,7 @@ export default function CalendarPage() {
           onReservationClick={(reservation) => setModalState({ reservation })}
           onMove={handleReschedule}
           onResize={handleReschedule}
+          onAddFollowUp={(berthId, date, checkInTime) => setModalState({ berthId, date, checkInTime })}
         />
         {loading && <p className="p-4 text-sm text-slate-400">Loading...</p>}
         {!loading && loadError && (
@@ -320,6 +322,7 @@ export default function CalendarPage() {
                   berthId: modalState.berthId ?? berths[0].id,
                   startDate: modalState.date ?? toISODate(new Date()),
                   endDate: modalState.date ?? toISODate(new Date()),
+                  checkInTime: modalState.checkInTime,
                 }
           }
           onClose={closeModal}
