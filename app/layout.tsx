@@ -31,6 +31,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <Link href="/" className="transition-colors hover:text-[#0a0a0a]">
                 Calendar
               </Link>
+              <Link href="/history" className="transition-colors hover:text-[#0a0a0a]">
+                History
+              </Link>
               <Link href="/berths" className="transition-colors hover:text-[#0a0a0a]">
                 Berths
               </Link>
