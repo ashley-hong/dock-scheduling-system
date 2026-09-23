@@ -174,6 +174,22 @@ export default function CalendarGrid({
           const rowCount = Math.max(1, lanes.length);
           const hasConflict = conflictBerthIds.has(berth.id);
 
+          // The "book after" suggestion is only useful if that slot isn't
+          // already taken - hide it once another reservation on the same
+          // day already starts at or after this one's check-out.
+          function alreadyHasFollowUp(r: Reservation): boolean {
+            if (!r.checkOutTime) return false;
+            const day = r.endDate.slice(0, 10);
+            return berthReservations.some(
+              (other) =>
+                other.id !== r.id &&
+                other.startDate.slice(0, 10) === day &&
+                other.endDate.slice(0, 10) === day &&
+                other.checkInTime != null &&
+                other.checkInTime >= r.checkOutTime!
+            );
+          }
+
           return Array.from({ length: rowCount }, (_, laneIndex) => {
             const segments = buildSegments(lanes[laneIndex] ?? [], days);
             return (
@@ -278,7 +294,9 @@ export default function CalendarGrid({
                           </span>
                         )}
                       </div>
-                      {r.checkOutTime && nextCheckInAfter(r.checkOutTime) && (
+                      {r.checkOutTime &&
+                        nextCheckInAfter(r.checkOutTime) &&
+                        !alreadyHasFollowUp(r) && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -292,9 +310,9 @@ export default function CalendarGrid({
                           title={`Book a new reservation on this berth starting ${formatTimeLabel(
                             nextCheckInAfter(r.checkOutTime!)!
                           )}`}
-                          className="mt-1 block w-full truncate rounded border border-dashed border-[#d4d4d4] px-1.5 py-0.5 text-left text-[10px] font-medium text-[#9ca3af] hover:border-[#7c3aed] hover:text-[#7c3aed]"
+                          className="absolute -bottom-1 left-1/2 flex h-4 w-4 -translate-x-1/2 translate-y-full items-center justify-center rounded-full border border-dashed border-[#d4d4d4] text-[10px] font-medium leading-none text-[#9ca3af] opacity-0 hover:border-[#7c3aed] hover:text-[#7c3aed] group-hover:opacity-100"
                         >
-                          + Book after {formatTimeLabel(nextCheckInAfter(r.checkOutTime!)!)}
+                          +
                         </button>
                       )}
                       {/* Resize handles are siblings of the draggable bar, not
