@@ -1,10 +1,28 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import type { Berth, Reservation } from "@prisma/client";
 
 export type OverlapCheckResult = {
   ok: boolean;
   conflicts: Reservation[];
 };
+
+/** Thrown from inside a `$transaction` callback to carry the conflicting
+ * reservations back out to the route handler's catch block. */
+export class OverlapError extends Error {
+  conflicts: Reservation[];
+  constructor(conflicts: Reservation[]) {
+    super("OVERLAP");
+    this.conflicts = conflicts;
+  }
+}
+
+/** True when a Serializable transaction lost a race to another concurrent
+ * write - Postgres's way of refusing to silently allow a double-booking
+ * that a check-then-write race would otherwise let through. */
+export function isTransactionConflict(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2034";
+}
 
 /**
  * Two date ranges [aStart,aEnd] and [bStart,bEnd] (inclusive, whole days)
@@ -30,13 +48,18 @@ export async function checkOverlap(
   berth: Pick<Berth, "id" | "capacity">,
   startDate: Date,
   endDate: Date,
-  excludeReservationId?: string
+  excludeReservationId?: string,
+  // Accepts either the module-level client or a `$transaction` callback's
+  // client, so a check-then-write can run inside one transaction instead of
+  // as two separate round trips (which left a window for two concurrent
+  // bookings to each pass the check before either one committed).
+  db: Pick<typeof prisma, "reservation"> = prisma
 ): Promise<OverlapCheckResult> {
   if (berth.capacity === null) {
     return { ok: true, conflicts: [] };
   }
 
-  const candidates = await prisma.reservation.findMany({
+  const candidates = await db.reservation.findMany({
     where: {
       berthId: berth.id,
       id: excludeReservationId ? { not: excludeReservationId } : undefined,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkOverlap, checkLengthFit } from "@/lib/validation";
+import { checkOverlap, checkLengthFit, OverlapError, isTransactionConflict } from "@/lib/validation";
 import { parseDateOnly } from "@/lib/dates";
 
 export async function GET(request: NextRequest) {
@@ -58,6 +58,12 @@ export async function POST(request: NextRequest) {
 
   const parsedVesselLength =
     vesselLengthFt === "" || vesselLengthFt == null ? null : Number(vesselLengthFt);
+  if (parsedVesselLength !== null && (!Number.isInteger(parsedVesselLength) || parsedVesselLength <= 0)) {
+    return NextResponse.json(
+      { error: "Vessel length must be a whole number of feet." },
+      { status: 400 }
+    );
+  }
 
   const lengthCheck = checkLengthFit(occupantType, parsedVesselLength, berth.lengthFt);
   if (!lengthCheck.ok) {
@@ -67,26 +73,44 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const overlapCheck = await checkOverlap(berth, start, end);
-  if (!overlapCheck.ok) {
-    return NextResponse.json(
-      { error: "OVERLAP", conflicts: overlapCheck.conflicts },
-      { status: 409 }
+  try {
+    // Serializable so the overlap check and the write are atomic together:
+    // without this, two nearly-simultaneous bookings for the same dates
+    // could each pass checkOverlap before either one commits, producing a
+    // real double-booking despite the check.
+    const reservation = await prisma.$transaction(
+      async (tx) => {
+        const overlapCheck = await checkOverlap(berth, start, end, undefined, tx);
+        if (!overlapCheck.ok) {
+          throw new OverlapError(overlapCheck.conflicts);
+        }
+        return tx.reservation.create({
+          data: {
+            berthId,
+            occupantName,
+            occupantType,
+            vesselLengthFt: parsedVesselLength,
+            startDate: start,
+            endDate: end,
+            notes: notes || null,
+          },
+          include: { berth: true },
+        });
+      },
+      { isolationLevel: "Serializable" }
     );
+
+    return NextResponse.json(reservation, { status: 201 });
+  } catch (err) {
+    if (err instanceof OverlapError) {
+      return NextResponse.json({ error: "OVERLAP", conflicts: err.conflicts }, { status: 409 });
+    }
+    if (isTransactionConflict(err)) {
+      return NextResponse.json(
+        { error: "OVERLAP", conflicts: [], reason: "Someone else just booked this berth - please try again." },
+        { status: 409 }
+      );
+    }
+    throw err;
   }
-
-  const reservation = await prisma.reservation.create({
-    data: {
-      berthId,
-      occupantName,
-      occupantType,
-      vesselLengthFt: parsedVesselLength,
-      startDate: start,
-      endDate: end,
-      notes: notes || null,
-    },
-    include: { berth: true },
-  });
-
-  return NextResponse.json(reservation, { status: 201 });
 }

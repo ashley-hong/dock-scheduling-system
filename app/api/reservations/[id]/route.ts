@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkOverlap, checkLengthFit } from "@/lib/validation";
+import { checkOverlap, checkLengthFit, OverlapError, isTransactionConflict } from "@/lib/validation";
 import { parseDateOnly } from "@/lib/dates";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -40,6 +40,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (start > end) {
     return NextResponse.json({ error: "Start date must be on or before end date." }, { status: 400 });
   }
+  if (vesselLengthFt !== null && (!Number.isInteger(vesselLengthFt) || vesselLengthFt <= 0)) {
+    return NextResponse.json(
+      { error: "Vessel length must be a whole number of feet." },
+      { status: 400 }
+    );
+  }
 
   const lengthCheck = checkLengthFit(occupantType, vesselLengthFt, berth.lengthFt);
   if (!lengthCheck.ok) {
@@ -49,29 +55,43 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const overlapCheck = await checkOverlap(berth, start, end, id);
-  if (!overlapCheck.ok) {
-    return NextResponse.json(
-      { error: "OVERLAP", conflicts: overlapCheck.conflicts },
-      { status: 409 }
+  try {
+    const updated = await prisma.$transaction(
+      async (tx) => {
+        const overlapCheck = await checkOverlap(berth, start, end, id, tx);
+        if (!overlapCheck.ok) {
+          throw new OverlapError(overlapCheck.conflicts);
+        }
+        return tx.reservation.update({
+          where: { id },
+          data: {
+            berthId,
+            occupantName,
+            occupantType,
+            vesselLengthFt,
+            startDate: start,
+            endDate: end,
+            notes: body.notes === undefined ? undefined : body.notes || null,
+          },
+          include: { berth: true },
+        });
+      },
+      { isolationLevel: "Serializable" }
     );
+
+    return NextResponse.json(updated);
+  } catch (err) {
+    if (err instanceof OverlapError) {
+      return NextResponse.json({ error: "OVERLAP", conflicts: err.conflicts }, { status: 409 });
+    }
+    if (isTransactionConflict(err)) {
+      return NextResponse.json(
+        { error: "OVERLAP", conflicts: [], reason: "Someone else just changed this berth's schedule - please try again." },
+        { status: 409 }
+      );
+    }
+    throw err;
   }
-
-  const updated = await prisma.reservation.update({
-    where: { id },
-    data: {
-      berthId,
-      occupantName,
-      occupantType,
-      vesselLengthFt,
-      startDate: start,
-      endDate: end,
-      notes: body.notes === undefined ? undefined : body.notes || null,
-    },
-    include: { berth: true },
-  });
-
-  return NextResponse.json(updated);
 }
 
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {

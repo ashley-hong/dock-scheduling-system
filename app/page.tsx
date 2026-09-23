@@ -15,6 +15,7 @@ export default function CalendarPage() {
   const [conflicts, setConflicts] = useState<DataQualityConflict[]>([]);
   const [rangeStart, setRangeStart] = useState(() => toISODate(new Date()));
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchError, setSearchError] = useState<string | null>(null);
   const [exportRange, setExportRange] = useState("current");
@@ -37,15 +38,24 @@ export default function CalendarPage() {
 
   async function loadData() {
     setLoading(true);
-    const [berthsRes, reservationsRes, conflictsRes] = await Promise.all([
-      fetch("/api/berths"),
-      fetch(`/api/reservations?from=${rangeStart}&to=${rangeEnd}`),
-      fetch("/api/data-quality"),
-    ]);
-    setBerths(await berthsRes.json());
-    setReservations(await reservationsRes.json());
-    setConflicts(await conflictsRes.json());
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const [berthsRes, reservationsRes, conflictsRes] = await Promise.all([
+        fetch("/api/berths"),
+        fetch(`/api/reservations?from=${rangeStart}&to=${rangeEnd}`),
+        fetch("/api/data-quality"),
+      ]);
+      if (!berthsRes.ok || !reservationsRes.ok || !conflictsRes.ok) {
+        throw new Error("One or more requests failed.");
+      }
+      setBerths(await berthsRes.json());
+      setReservations(await reservationsRes.json());
+      setConflicts(await conflictsRes.json());
+    } catch {
+      setLoadError("Couldn't load the calendar. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -271,7 +281,18 @@ export default function CalendarPage() {
           onResize={handleReschedule}
         />
         {loading && <p className="p-4 text-sm text-slate-400">Loading...</p>}
-        {!loading && berths.length === 0 && (
+        {!loading && loadError && (
+          <div className="flex items-center gap-3 p-4 text-sm text-red-600">
+            <span>{loadError}</span>
+            <button
+              onClick={loadData}
+              className="rounded-md border border-red-200 px-2 py-1 text-[12px] font-medium hover:bg-red-50"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {!loading && !loadError && berths.length === 0 && (
           <p className="p-4 text-sm text-slate-400">
             No berths yet. Add one on the Berths page.
           </p>

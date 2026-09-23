@@ -79,10 +79,14 @@ export default function ReservationModal({
       if (!res.ok) {
         const data = await res.json();
         if (data.error === "OVERLAP") {
-          const names = (data.conflicts as Reservation[])
-            .map((c) => `${c.occupantName} (${c.startDate.slice(0, 10)} to ${c.endDate.slice(0, 10)})`)
-            .join(", ");
-          setError(`This berth is already booked during that range by: ${names}`);
+          if (data.conflicts?.length) {
+            const names = (data.conflicts as Reservation[])
+              .map((c) => `${c.occupantName} (${c.startDate.slice(0, 10)} to ${c.endDate.slice(0, 10)})`)
+              .join(", ");
+            setError(`This berth is already booked during that range by: ${names}`);
+          } else {
+            setError(data.reason ?? "This berth is already booked during that range.");
+          }
         } else if (data.error === "LENGTH_MISMATCH") {
           setError(data.reason ?? "Vessel does not fit this berth.");
         } else {
@@ -155,6 +159,7 @@ export default function ReservationModal({
               <input
                 type="number"
                 min={1}
+                step={1}
                 className="w-full rounded-md border border-[#e5e5e5] px-3 py-2 text-[14px] font-mono focus:border-[#7c3aed] focus:outline-none"
                 value={vesselLengthFt}
                 onChange={(e) => setVesselLengthFt(e.target.value)}
