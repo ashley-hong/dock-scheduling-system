@@ -75,6 +75,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         const overlapCheck = await checkOverlap(berth, start, end, id, tx, {
           occupantType,
           vesselLengthFt,
+          checkInTime,
+          checkOutTime,
         });
         if (!overlapCheck.ok) {
           throw new OverlapError(overlapCheck.conflicts);

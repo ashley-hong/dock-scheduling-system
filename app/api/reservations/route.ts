@@ -105,6 +105,8 @@ export async function POST(request: NextRequest) {
         const overlapCheck = await checkOverlap(berth, start, end, undefined, tx, {
           occupantType,
           vesselLengthFt: parsedVesselLength,
+          checkInTime,
+          checkOutTime,
         });
         if (!overlapCheck.ok) {
           throw new OverlapError(overlapCheck.conflicts);

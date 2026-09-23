@@ -47,6 +47,30 @@ function isMeasurableVessel(
   return r.occupantType === "VESSEL" && r.vesselLengthFt != null;
 }
 
+type DateTimeRange = {
+  startDate: Date;
+  endDate: Date;
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
+};
+
+/**
+ * True when two bookings only ever *look* like a conflict because they
+ * share a calendar day, but couldn't actually have been on the berth at
+ * the same time - both are exactly one day, on the same day, with a known
+ * check-in and check-out that don't overlap (one's check-out is at or
+ * before the other's check-in). Missing time info on either side, or a
+ * multi-day booking, can't be proven safe, so it falls back to treating
+ * same-day as a real conflict, same as before this existed.
+ */
+function definitelyDontOverlapByTime(a: DateTimeRange, b: DateTimeRange): boolean {
+  if (a.startDate.getTime() !== a.endDate.getTime()) return false;
+  if (b.startDate.getTime() !== b.endDate.getTime()) return false;
+  if (a.startDate.getTime() !== b.startDate.getTime()) return false;
+  if (!a.checkInTime || !a.checkOutTime || !b.checkInTime || !b.checkOutTime) return false;
+  return a.checkOutTime <= b.checkInTime || b.checkOutTime <= a.checkInTime;
+}
+
 /**
  * Checks whether assigning [startDate,endDate] to a berth would push the
  * number of simultaneous occupants past that berth's capacity.
@@ -61,6 +85,12 @@ function isMeasurableVessel(
  * already-overlapping occupant are vessels with a known length; otherwise
  * it falls back to the ordinary one-at-a-time rule, since fit can't be
  * determined for an event or a vessel of unknown length.
+ *
+ * Before either rule is applied, same-day bookings whose check-in/check-out
+ * times are both known and don't actually overlap are dropped from
+ * consideration entirely - e.g. a boat checking out at 9:30 AM doesn't
+ * conflict with the next one checking in at 10:30 AM, even though both
+ * are dated the same day.
  */
 export async function checkOverlap(
   berth: Pick<Berth, "id" | "capacity" | "lengthFt" | "allowsLengthBasedSharing">,
@@ -72,13 +102,13 @@ export async function checkOverlap(
   // as two separate round trips (which left a window for two concurrent
   // bookings to each pass the check before either one committed).
   db: Pick<typeof prisma, "reservation"> = prisma,
-  newOccupant?: Pick<Reservation, "occupantType" | "vesselLengthFt">
+  newOccupant?: Pick<Reservation, "occupantType" | "vesselLengthFt" | "checkInTime" | "checkOutTime">
 ): Promise<OverlapCheckResult> {
   if (berth.capacity === null) {
     return { ok: true, conflicts: [] };
   }
 
-  const candidates = await db.reservation.findMany({
+  const dateOverlapping = await db.reservation.findMany({
     where: {
       berthId: berth.id,
       id: excludeReservationId ? { not: excludeReservationId } : undefined,
@@ -87,6 +117,14 @@ export async function checkOverlap(
     },
     orderBy: { startDate: "asc" },
   });
+
+  const newRange: DateTimeRange = {
+    startDate,
+    endDate,
+    checkInTime: newOccupant?.checkInTime,
+    checkOutTime: newOccupant?.checkOutTime,
+  };
+  const candidates = dateOverlapping.filter((c) => !definitelyDontOverlapByTime(newRange, c));
 
   if (
     berth.allowsLengthBasedSharing &&
@@ -205,6 +243,13 @@ export async function findDataQualityConflicts(): Promise<DataQualityConflict[]>
               reservations[j].endDate
             )
           ) {
+            continue;
+          }
+
+          // Same-day bookings with known, non-overlapping check-in/check-out
+          // times were never actually simultaneous, whatever the berth's
+          // sharing setting.
+          if (definitelyDontOverlapByTime(reservations[i], reservations[j])) {
             continue;
           }
 
