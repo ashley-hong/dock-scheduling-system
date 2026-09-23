@@ -12,6 +12,7 @@ Harborview Dock Scheduler is a web application for managing berth reservations a
 - Prevent vessels from being assigned to berths that are too short
 - Search the complete reservation history by vessel or event name
 - Browse and filter the complete reservation history by year, berth, or type
+- Print a one-page roster of today's berth occupancy for dock staff
 - Manage berth names, lengths, and capacities
 - Audit existing reservations for scheduling and vessel-fit conflicts
 - Export reservations as CSV for a selected date range or the complete history
@@ -80,6 +81,10 @@ All reservation changes pass through the same server-side validation. If a drag 
 ### History
 
 The calendar is built for the near term; the History page is built for looking back across all 23 years of records. It lists reservations in a plain table, filterable by year, berth, or vessel/event type, and sortable oldest-first or newest-first. Clicking a row opens the same reservation form used on the Calendar, so a mistake found while reviewing old records (a typo'd vessel length, for example) can be corrected in place. Results are capped at 300 rows at a time; narrowing the filters brings the rest into view.
+
+### Roster
+
+The Roster page lists every berth and today's occupant, or "Available" if none, in a printable one-page format for handing to dock staff. It hides the site navigation when printed.
 
 ### Berths
 
