@@ -71,10 +71,26 @@ export default function CalendarGrid({
 }: Props) {
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const resizeRef = useRef<ResizeState | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+  const [draggingBerthId, setDraggingBerthId] = useState<string | null>(null);
 
   useEffect(() => {
     resizeRef.current = resizeState;
   }, [resizeState]);
+
+  // Native drag-and-drop gives no visual feedback about which cell will
+  // receive the drop, which is exactly what made it feel imprecise -
+  // dragOverKey highlights the cell currently under the pointer. A window
+  // "dragend" listener clears it even if the drop lands somewhere that
+  // never fires its own dragLeave (an occupied cell, or outside the table).
+  useEffect(() => {
+    function clear() {
+      setDragOverKey(null);
+      setDraggingBerthId(null);
+    }
+    window.addEventListener("dragend", clear);
+    return () => window.removeEventListener("dragend", clear);
+  }, []);
 
   useEffect(() => {
     if (!resizeState) return;
@@ -227,6 +243,10 @@ export default function CalendarGrid({
                 {segments.map((seg) => {
                   if (seg.type === "empty") {
                     const iso = toISODate(seg.date);
+                    const cellKey = `${berth.id}-${iso}`;
+                    const isValidTarget = draggingBerthId === null || draggingBerthId === berth.id;
+                    const isDragTarget = dragOverKey === cellKey && isValidTarget;
+                    const isInvalidTarget = dragOverKey === cellKey && !isValidTarget;
                     return (
                       <td
                         key={iso}
@@ -234,13 +254,22 @@ export default function CalendarGrid({
                         data-berth-id={berth.id}
                         data-first-date={iso}
                         data-span={1}
-                        className={`group cursor-pointer border-b border-[#f0f0f0] px-1 py-1 align-top transition-colors hover:bg-[#fafafa] ${
-                          iso === todayISO ? "bg-[#f9f5ff]" : ""
+                        className={`group border-b border-[#f0f0f0] px-1 py-1 align-top transition-colors hover:bg-[#fafafa] ${
+                          isDragTarget
+                            ? "cursor-pointer bg-[#f3ebfe] ring-2 ring-inset ring-[#7c3aed]"
+                            : isInvalidTarget
+                            ? "cursor-not-allowed bg-[#fef2f2]"
+                            : iso === todayISO
+                            ? "cursor-pointer bg-[#f9f5ff]"
+                            : "cursor-pointer"
                         }`}
                         onClick={() => onEmptyClick(berth.id, iso)}
+                        onDragEnter={() => setDragOverKey(cellKey)}
                         onDragOver={(e) => e.preventDefault()}
+                        onDragLeave={() => setDragOverKey((k) => (k === cellKey ? null : k))}
                         onDrop={(e) => {
                           e.preventDefault();
+                          setDragOverKey(null);
                           const data = e.dataTransfer.getData("text/plain");
                           if (!data) return;
                           const { id, berthId, durationDays } = JSON.parse(data);
@@ -251,7 +280,13 @@ export default function CalendarGrid({
                           onMove(id, toISODate(newStart), toISODate(newEnd));
                         }}
                       >
-                        <span className="flex h-8 w-full items-center justify-center text-base text-[#d4d4d4] opacity-0 transition-opacity group-hover:opacity-100">
+                        <span
+                          className={`flex h-8 w-full items-center justify-center text-base transition-opacity ${
+                            isDragTarget
+                              ? "text-[#7c3aed] opacity-100"
+                              : "text-[#d4d4d4] opacity-0 group-hover:opacity-100"
+                          }`}
+                        >
                           +
                         </span>
                       </td>
@@ -280,6 +315,7 @@ export default function CalendarGrid({
                             "text/plain",
                             JSON.stringify({ id: r.id, berthId: r.berthId, durationDays })
                           );
+                          setDraggingBerthId(r.berthId);
                         }}
                         onClick={() => !isBeingResized && onReservationClick(r)}
                         className={`relative select-none rounded px-1.5 py-1 text-left text-xs text-white ${
