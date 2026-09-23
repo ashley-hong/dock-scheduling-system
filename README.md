@@ -13,7 +13,8 @@ Harborview Dock Scheduler is a web application for managing berth reservations a
 - Search the complete reservation history by vessel or event name
 - Browse and filter the complete reservation history by year, berth, or type
 - Print a one-page roster of today's berth occupancy for dock staff
-- Record an optional check-in/check-out time (8:00 AM-5:00 PM, 30-minute increments) on a reservation
+- Record an optional check-in/check-out time (8:00 AM-5:00 PM, 30-minute increments) on a reservation, allowing a same-day back-to-back booking on the same berth once the first one's time is known
+- One-click "Book after" button on a reservation with a check-out time, prefilling a new same-day booking an hour later
 - Manage berth names, lengths, and capacities, including an opt-in rule that lets multiple vessels share one berth if their lengths add up to no more than the berth's length
 - Audit existing reservations for scheduling and vessel-fit conflicts
 - Export reservations as CSV for a selected date range or the complete history
@@ -77,6 +78,7 @@ The Calendar displays two weeks of reservations, grouped by berth. From this pag
 - Search for a vessel or event across the complete reservation history
 - Export the visible range, the next 4 or 12 weeks, or the complete history
 - Set an optional check-in/check-out time on a reservation, shown on its bar and in its tooltip
+- Click "Book after" on a reservation with a check-out time to prefill a same-day follow-up booking an hour later, when that still falls within operating hours
 
 All reservation changes pass through the same server-side validation. If a drag or resize operation is rejected, the calendar restores the previous dates and explains the conflict. A berth with length-based sharing enabled shows a "shared" badge next to its name.
 
@@ -156,6 +158,7 @@ The primary business rules are defined in [`lib/validation.ts`](lib/validation.t
 1. A reservation cannot cause a berth to exceed its capacity - unless the berth has length-based sharing enabled, in which case any number of vessels may overlap as long as their lengths add up to no more than the berth's length.
 2. A vessel with a known length cannot be assigned to a shorter berth.
 3. An optional check-in/check-out time must fall within operating hours (8:00 AM-5:00 PM) in 30-minute increments, with check-in before check-out.
+4. Two same-day, single-day reservations on the same berth don't count as a conflict if both have a known check-in/check-out time and those times don't overlap (touching exactly, e.g. a 9:30 check-out and a 9:30 check-in, counts as not overlapping). This applies on top of rule 1, whichever occupancy rule the berth uses.
 
 Reservation creation, form-based editing, dragging, and resizing all use the same validation functions. The Data Quality page also uses these rules when auditing existing records. Keeping the rules in one module ensures that every entry point evaluates reservations consistently.
 
@@ -226,7 +229,9 @@ Checking the imported data directly: zero of the 2,139 historical reservations e
 
 ### Check-In/Check-Out Times
 
-Checking the imported data directly: none of the 2,039 historical vessel reservations record a length at all, and the source schedule has no time-of-day information either, so there's nothing to calibrate a time-based rule against historically. Check-in/check-out time is therefore built as optional, informational infrastructure for new reservations going forward: a "HH:MM" value validated to fall within operating hours (8:00 AM-5:00 PM) in 30-minute increments. It is deliberately not wired into overlap detection, which still operates on whole days - the calendar is a day-grid and can't show sub-day granularity without a different view, and a same-day, back-to-back turnaround (e.g., one boat out by check-out, another in an hour later) is a real scheduling case that whole-day overlap checking can't represent on its own. Making the field capturable now means that logic can be added later without a schema change.
+Checking the imported data directly: none of the 2,039 historical vessel reservations record a length at all, and the source schedule has no time-of-day information either, so there's nothing to calibrate a time-based rule against historically. Check-in/check-out time is therefore optional, added for new reservations going forward: a "HH:MM" value validated to fall within operating hours (8:00 AM-5:00 PM) in 30-minute increments.
+
+It does factor into overlap detection, but only for the one case that's unambiguous: two single-day bookings on the same berth and the same day don't conflict if both have a known check-in/check-out time and those times don't actually overlap - so a boat checking out at 9:30 AM doesn't block one checking in at 10:30 AM, even on an ordinary one-at-a-time berth. Anything less certain (a multi-day booking, or either side missing a time) still falls back to treating the whole day as taken, exactly as before this feature existed. This is a narrower, safer slice than full sub-day overlap detection - the calendar is still a day-grid and can't show a same-day timeline, and there's no enforced turnaround buffer between the two (the calendar's "Book after" button suggests an hour as a sensible default, but a manager can move it closer since nothing requires a gap).
 
 ## Testing
 
@@ -245,6 +250,7 @@ The following checks have been completed:
 - Detection of conflicts inserted directly into the database
 - Length-based berth sharing: acceptance when combined vessel lengths fit, rejection when they don't, and fallback to one-at-a-time for an event or an unknown-length vessel (14 scenarios covering these cases, plus confirming ordinary and multi-slip berths are unaffected)
 - Check-in/check-out time validation: acceptance inside operating hours on a 30-minute increment, rejection outside operating hours, off-increment, or out of order
+- Same-day back-to-back bookings: acceptance when times don't overlap (including touching exactly), rejection when they do, and fallback to whole-day exclusivity when either side is missing a time or spans multiple days (5 scenarios)
 
 The repository does not currently include a maintained automated test suite. The first additions should be unit tests for overlap and vessel-fit validation, followed by API integration tests for reservation operations.
 
@@ -276,7 +282,8 @@ The application previously used SQLite for local development. SQLite files are c
 - Add unit and API integration tests
 - Add authentication, permissions, and change history
 - Add vessel records with reusable dimensions and metadata
-- Extend overlap detection to use check-in/check-out times (with a configurable turnaround buffer) instead of whole-day granularity, and add a same-day timeline view to the calendar to show it
+- Add a same-day timeline view so multiple bookings on one berth in one day are visible at a glance, instead of only in each bar's subtext/tooltip
+- Add a configurable minimum turnaround buffer between two same-day bookings on one berth, instead of allowing them to touch exactly
 - Track combined-length overlaps as a group instead of pairwise, so a three-or-more-way length-sharing violation is caught by the Data Quality audit
 - Add maintenance closures between bookings
 - Add notifications or approval workflows for reservation changes
