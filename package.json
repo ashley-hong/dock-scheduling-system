@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
-    "db:migrate": "prisma migrate deploy",
+    "db:migrate": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:setup": "npm run db:migrate && npm run db:seed",
     "convert-legacy-data": "python3 scripts/convert_legacy_xlsx.py"

@@ -22,7 +22,7 @@ Harborview Dock Scheduler is a web application for managing berth reservations a
 - **Next.js and React:** User interface and API routes
 - **TypeScript:** Static type checking
 - **Prisma:** Database access and schema management
-- **SQLite:** Local data storage
+- **PostgreSQL:** Data storage (used in both local development and production)
 - **Tailwind CSS:** Interface styling
 - **date-fns:** Calendar calculations and date formatting
 
@@ -159,7 +159,7 @@ Validation failures return structured API responses:
 - Classifies occupants as vessels or events
 - Removes duplicate cells repeated across yearly tabs
 
-The script writes the results to `data/berths.json` and `data/reservations.json`. [`prisma/seed.ts`](prisma/seed.ts) loads these files into SQLite.
+The script writes the results to `data/berths.json` and `data/reservations.json`. [`prisma/seed.ts`](prisma/seed.ts) loads these files into the database.
 
 To regenerate and reload the imported data:
 
@@ -224,18 +224,18 @@ The repository does not currently include a maintained automated test suite. The
 
 ## Deployment
 
-The application can run on any Node.js host. A typical deployment requires:
+The application runs on Postgres in every environment, including local development, so the same `DATABASE_URL` works everywhere and no separate migration step is needed between environments.
 
-1. Running `npm install && npm run build` during the build step.
-2. Setting `DATABASE_URL` to the deployed database connection string.
-3. Applying database migrations before starting the application.
-4. Running `npm start` to serve the production build.
+Deploying to Vercel:
+
+1. Push the repository to GitHub and import it into Vercel.
+2. Add a Postgres database from Vercel's Storage tab (or any managed Postgres provider) and copy its connection string into the `DATABASE_URL` environment variable in the Vercel project settings.
+3. Deploy. Vercel runs `npm install && npm run build`, and `postinstall` regenerates the Prisma client automatically.
+4. Once deployed, apply the schema and load the seed data by running `npm run db:setup` locally with `DATABASE_URL` temporarily set to the same production connection string.
 
 ### Database Persistence
 
-SQLite is convenient for local development, but the database file must be stored on a persistent disk in production. On an ephemeral host, application data will be lost when the instance restarts.
-
-For a production deployment, PostgreSQL is the recommended next step. Prisma allows the application to retain the same data model and validation layer while moving persistence to a managed database.
+The application previously used SQLite for local development. SQLite files are convenient locally but are lost on ephemeral hosts (like Vercel's serverless functions) whenever the instance restarts, so the project now uses Postgres in every environment via `prisma db push`, which keeps the schema and validation layer identical to before while making production data durable.
 
 ## Current Limitations
 
@@ -244,12 +244,10 @@ For a production deployment, PostgreSQL is the recommended next step. Prisma all
 - No automated unit or integration test suite
 - Historical vessel lengths are unavailable for many imported reservations
 - Vessel and event types are inferred during import when the source data is ambiguous
-- SQLite requires persistent disk to retain production data
 
 ## Future Improvements
 
 - Add unit and API integration tests
-- Move production data to PostgreSQL
 - Add authentication, permissions, and change history
 - Add vessel records with reusable dimensions and metadata
 - Add maintenance closures and configurable turnaround time between bookings
