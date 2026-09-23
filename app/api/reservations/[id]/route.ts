@@ -6,6 +6,7 @@ import {
   checkTimeWindow,
   OverlapError,
   isTransactionConflict,
+  sharingByLengthWouldHaveHelped,
 } from "@/lib/validation";
 import { parseDateOnly } from "@/lib/dates";
 
@@ -103,7 +104,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(updated);
   } catch (err) {
     if (err instanceof OverlapError) {
-      return NextResponse.json({ error: "OVERLAP", conflicts: err.conflicts }, { status: 409 });
+      const hint = sharingByLengthWouldHaveHelped(berth, occupantType, vesselLengthFt)
+        ? `If you want more than one vessel to share "${berth.name}" at once, turn on "Allow sharing by length" for it on the Berths page.`
+        : undefined;
+      return NextResponse.json({ error: "OVERLAP", conflicts: err.conflicts, hint }, { status: 409 });
     }
     if (isTransactionConflict(err)) {
       return NextResponse.json(

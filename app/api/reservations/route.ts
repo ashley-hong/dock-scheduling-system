@@ -6,6 +6,7 @@ import {
   checkTimeWindow,
   OverlapError,
   isTransactionConflict,
+  sharingByLengthWouldHaveHelped,
 } from "@/lib/validation";
 import { parseDateOnly } from "@/lib/dates";
 import type { OccupantType } from "@prisma/client";
@@ -132,7 +133,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(reservation, { status: 201 });
   } catch (err) {
     if (err instanceof OverlapError) {
-      return NextResponse.json({ error: "OVERLAP", conflicts: err.conflicts }, { status: 409 });
+      const hint = sharingByLengthWouldHaveHelped(berth, occupantType, parsedVesselLength)
+        ? `If you want more than one vessel to share "${berth.name}" at once, turn on "Allow sharing by length" for it on the Berths page.`
+        : undefined;
+      return NextResponse.json({ error: "OVERLAP", conflicts: err.conflicts, hint }, { status: 409 });
     }
     if (isTransactionConflict(err)) {
       return NextResponse.json(

@@ -91,7 +91,10 @@ export default function BerthsPage() {
       <p className="mb-6 text-[13px] text-[#6b7280]">
         Define the physical berths available at the facility. A berth with no fixed
         length (like a multi-slip finger pier) skips the vessel-length check, and a
-        berth with unlimited capacity allows more than one simultaneous occupant.
+        berth with unlimited capacity allows more than one simultaneous occupant. A
+        standard berth only ever holds one reservation at a time by default - to let
+        two vessels share one, turn on &quot;Allow sharing by length&quot; for that
+        specific berth below (it&apos;s off by default and set per berth).
       </p>
 
       <form

@@ -129,7 +129,9 @@ export default function CalendarPage() {
       setReservations(previous);
       const message =
         data.error === "OVERLAP"
-          ? "Can't move there - that berth is already booked during those dates."
+          ? `Can't move there - that berth is already booked during those dates.${
+              data.hint ? ` ${data.hint}` : ""
+            }`
           : data.error === "LENGTH_MISMATCH"
           ? data.reason
           : "Couldn't reschedule that booking.";

@@ -160,6 +160,27 @@ export async function checkOverlap(
   return { ok, conflicts: ok ? [] : candidates };
 }
 
+/**
+ * True when a rejected booking could plausibly have succeeded if the
+ * berth's "sharing by length" option were turned on - i.e. it's currently
+ * off, the berth has a fixed length to share, and the occupant is a vessel
+ * with a known length. Used to surface a one-line pointer to the Berths
+ * page right when someone hits this, rather than leaving it undiscoverable
+ * behind a generic "already booked" message.
+ */
+export function sharingByLengthWouldHaveHelped(
+  berth: Pick<Berth, "allowsLengthBasedSharing" | "lengthFt">,
+  occupantType: string,
+  vesselLengthFt: number | null | undefined
+): boolean {
+  return (
+    !berth.allowsLengthBasedSharing &&
+    berth.lengthFt != null &&
+    occupantType === "VESSEL" &&
+    vesselLengthFt != null
+  );
+}
+
 export type LengthCheckResult = {
   ok: boolean;
   reason?: string;

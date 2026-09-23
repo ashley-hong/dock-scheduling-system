@@ -96,13 +96,14 @@ export default function ReservationModal({
       if (!res.ok) {
         const data = await res.json();
         if (data.error === "OVERLAP") {
+          const hintSuffix = data.hint ? ` ${data.hint}` : "";
           if (data.conflicts?.length) {
             const names = (data.conflicts as Reservation[])
               .map((c) => `${c.occupantName} (${c.startDate.slice(0, 10)} to ${c.endDate.slice(0, 10)})`)
               .join(", ");
-            setError(`This berth is already booked during that range by: ${names}`);
+            setError(`This berth is already booked during that range by: ${names}.${hintSuffix}`);
           } else {
-            setError(data.reason ?? "This berth is already booked during that range.");
+            setError(`${data.reason ?? "This berth is already booked during that range."}${hintSuffix}`);
           }
         } else if (data.error === "LENGTH_MISMATCH") {
           setError(data.reason ?? "Vessel does not fit this berth.");
