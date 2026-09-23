@@ -54,13 +54,24 @@ type DateTimeRange = {
   checkOutTime?: string | null;
 };
 
+/** Minimum gap required between one boat's check-out and the next boat's
+ * check-in on the same berth, same day - time for the dock to be cleared
+ * (cleaning, etc.) before the next arrival. */
+export const MIN_TURNAROUND_MINUTES = 60;
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
 /**
  * True when two bookings only ever *look* like a conflict because they
  * share a calendar day, but couldn't actually have been on the berth at
  * the same time - both are exactly one day, on the same day, with a known
- * check-in and check-out that don't overlap (one's check-out is at or
- * before the other's check-in). Missing time info on either side, or a
- * multi-day booking, can't be proven safe, so it falls back to treating
+ * check-in and check-out, and whichever one finishes first leaves at least
+ * MIN_TURNAROUND_MINUTES before the other one's check-in. Missing time
+ * info on either side, a multi-day booking, or a gap shorter than the
+ * turnaround minimum can't be proven safe, so it falls back to treating
  * same-day as a real conflict, same as before this existed.
  */
 function definitelyDontOverlapByTime(a: DateTimeRange, b: DateTimeRange): boolean {
@@ -68,7 +79,11 @@ function definitelyDontOverlapByTime(a: DateTimeRange, b: DateTimeRange): boolea
   if (b.startDate.getTime() !== b.endDate.getTime()) return false;
   if (a.startDate.getTime() !== b.startDate.getTime()) return false;
   if (!a.checkInTime || !a.checkOutTime || !b.checkInTime || !b.checkOutTime) return false;
-  return a.checkOutTime <= b.checkInTime || b.checkOutTime <= a.checkInTime;
+  const aOut = timeToMinutes(a.checkOutTime);
+  const aIn = timeToMinutes(a.checkInTime);
+  const bOut = timeToMinutes(b.checkOutTime);
+  const bIn = timeToMinutes(b.checkInTime);
+  return aOut + MIN_TURNAROUND_MINUTES <= bIn || bOut + MIN_TURNAROUND_MINUTES <= aIn;
 }
 
 /**
@@ -186,10 +201,12 @@ export type TimeWindowCheckResult = LengthCheckResult;
 /**
  * Optional check-in/check-out times must fall within operating hours
  * (8:00-17:00) in 30-minute increments, with check-in before check-out.
- * Either or both may be left out entirely, in which case the reservation
- * behaves exactly as it always has - a whole-day booking with no time
- * component. This only validates the values; it does not (yet) factor
- * into overlap detection, which still operates on whole days.
+ * They must be set as a pair - both present or both left out - since a
+ * reservation with only one of the two can't be compared against another
+ * booking's times (checkOverlap requires both sides to have both times
+ * before treating a same-day pair as sequential rather than whole-day),
+ * and would otherwise silently fall back to blocking the whole day with
+ * no indication why.
  */
 export function checkTimeWindow(
   checkInTime: string | null | undefined,
@@ -202,6 +219,12 @@ export function checkTimeWindow(
         reason: `"${t}" isn't a valid time - use 30-minute increments between ${OPERATING_HOURS_START} and ${OPERATING_HOURS_END}.`,
       };
     }
+  }
+  if ((checkInTime != null) !== (checkOutTime != null)) {
+    return {
+      ok: false,
+      reason: "Set both a check-in and a check-out time, or leave both blank.",
+    };
   }
   if (checkInTime != null && checkOutTime != null && checkInTime >= checkOutTime) {
     return { ok: false, reason: "Check-in time must be before check-out time." };

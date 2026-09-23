@@ -249,7 +249,9 @@ export default function ReservationModal({
               <p>
                 Optional. If set, times must fall between 8:00 AM and 5:00 PM in 30-minute
                 increments, with check-in before check-out. Leaving both blank keeps this as a
-                whole-day booking, same as before this option existed.
+                whole-day booking, same as before this option existed. If two boats have times
+                set on the same berth and day, they need at least an hour between one&apos;s
+                check-out and the next one&apos;s check-in (time for the dock to be cleared).
               </p>
             </InfoPopover>
           </div>
