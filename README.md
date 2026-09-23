@@ -2,8 +2,7 @@
 
 Harborview Dock Scheduler is a web application for managing berth reservations at a marine research facility. It replaces a 23-year spreadsheet schedule that required staff to check manually for double-bookings and vessel-to-berth length mismatches.
 
-**Live application:** _Add deployed URL here_  
-**Repository:** _Add repository URL here_
+**Live application:** https://dock-scheduling-system-nine.vercel.app/
 
 ## Features
 
