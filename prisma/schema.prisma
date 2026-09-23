@@ -17,15 +17,23 @@ datasource db {
 //     several occupants at once is expected and not a scheduling error.
 // `lengthFt` is null for areas where a single length doesn't apply (e.g. the
 // finger piers), which means vessel-length-fit checks are skipped for it.
+// `allowsLengthBasedSharing` is an opt-in alternative to the `capacity` count
+// for a single berth: instead of one occupant at a time, any number of
+// vessels may overlap as long as their vessel lengths add up to no more than
+// `lengthFt`. It only applies when every overlapping reservation is a vessel
+// with a known length - anything else (an event, or a vessel with an unknown
+// length) falls back to the ordinary one-at-a-time rule, since there's no
+// way to know whether it fits alongside the others.
 model Berth {
-  id           String        @id @default(cuid())
-  name         String        @unique
-  lengthFt     Int?
-  capacity     Int?          @default(1)
-  notes        String?
-  reservations Reservation[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                       String        @id @default(cuid())
+  name                     String        @unique
+  lengthFt                 Int?
+  capacity                 Int?          @default(1)
+  allowsLengthBasedSharing Boolean       @default(false)
+  notes                    String?
+  reservations             Reservation[]
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
 }
 
 enum OccupantType {
@@ -33,6 +41,13 @@ enum OccupantType {
   EVENT
 }
 
+// `checkInTime`/`checkOutTime` are optional "HH:MM" strings (e.g. "08:30")
+// for facilities that track same-day arrival/departure within operating
+// hours (8:00-17:00, 30-minute increments). They're informational for now:
+// a reservation without them behaves exactly as before (a whole-day
+// booking), and the overlap/conflict rules above still operate on
+// startDate/endDate. This is deliberately not wired into hour-level conflict
+// detection yet - see the README's Future Improvements for why.
 model Reservation {
   id             String       @id @default(cuid())
   berth          Berth        @relation(fields: [berthId], references: [id], onDelete: Cascade)
@@ -42,6 +57,8 @@ model Reservation {
   vesselLengthFt Int?
   startDate      DateTime
   endDate        DateTime
+  checkInTime    String?
+  checkOutTime   String?
   notes          String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

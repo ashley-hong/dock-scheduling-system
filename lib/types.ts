@@ -5,6 +5,7 @@ export type Berth = {
   name: string;
   lengthFt: number | null;
   capacity: number | null;
+  allowsLengthBasedSharing: boolean;
   notes: string | null;
 };
 
@@ -16,6 +17,8 @@ export type Reservation = {
   vesselLengthFt: number | null;
   startDate: string;
   endDate: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
   notes: string | null;
   berth?: Berth;
 };
