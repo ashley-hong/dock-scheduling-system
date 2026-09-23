@@ -65,12 +65,24 @@ export default function BerthsPage() {
   }
 
   async function toggleSharing(berth: Berth) {
-    await fetch(`/api/berths/${berth.id}`, {
+    const nextValue = !berth.allowsLengthBasedSharing;
+    // Optimistic: the checkbox is controlled by berths state, so without
+    // this it visibly flickers back to the old value for the length of the
+    // round trip before load() catches up - update it immediately and roll
+    // back only if the request actually fails.
+    setBerths((prev) =>
+      prev.map((b) => (b.id === berth.id ? { ...b, allowsLengthBasedSharing: nextValue } : b))
+    );
+    const res = await fetch(`/api/berths/${berth.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ allowsLengthBasedSharing: !berth.allowsLengthBasedSharing }),
+      body: JSON.stringify({ allowsLengthBasedSharing: nextValue }),
     });
-    load();
+    if (!res.ok) {
+      setBerths((prev) =>
+        prev.map((b) => (b.id === berth.id ? { ...b, allowsLengthBasedSharing: !nextValue } : b))
+      );
+    }
   }
 
   return (
