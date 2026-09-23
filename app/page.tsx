@@ -96,19 +96,32 @@ export default function CalendarPage() {
   // rejects it (a real overlap, since dragging can't check length/overlap
   // ahead of time the way the form does), roll the visible state back and
   // say why - rather than silently snapping back with no explanation.
-  async function handleReschedule(reservationId: string, newStartISO: string, newEndISO: string) {
+  async function handleReschedule(
+    reservationId: string,
+    newStartISO: string,
+    newEndISO: string,
+    newBerthId?: string
+  ) {
     const previous = reservations;
     const target = previous.find((r) => r.id === reservationId);
     if (!target) return;
 
     setReservations((prev) =>
-      prev.map((r) => (r.id === reservationId ? { ...r, startDate: newStartISO, endDate: newEndISO } : r))
+      prev.map((r) =>
+        r.id === reservationId
+          ? { ...r, startDate: newStartISO, endDate: newEndISO, berthId: newBerthId ?? r.berthId }
+          : r
+      )
     );
 
     const res = await fetch(`/api/reservations/${reservationId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ startDate: newStartISO, endDate: newEndISO }),
+      body: JSON.stringify({
+        startDate: newStartISO,
+        endDate: newEndISO,
+        ...(newBerthId ? { berthId: newBerthId } : {}),
+      }),
     });
 
     if (!res.ok) {

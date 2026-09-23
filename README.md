@@ -73,7 +73,7 @@ The Calendar displays two weeks of reservations, grouped by berth. From this pag
 
 - Click an empty date to create a reservation
 - Click a reservation to view, edit, or delete it
-- Drag a reservation to move it to new dates
+- Drag a reservation to move it to new dates, or onto a different berth's row
 - Drag either edge of a reservation to change its duration
 - Search for a vessel or event across the complete reservation history
 - Export the visible range, the next 4 or 12 weeks, or the complete history

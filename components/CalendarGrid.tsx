@@ -37,6 +37,9 @@ type MoveState = {
   grabOffsetDays: number;
   previewStart: string;
   previewEnd: string;
+  // The berth currently under the pointer - a move can land on a different
+  // berth than the one the reservation started on.
+  previewBerthId: string;
   pointerDownX: number;
   pointerDownY: number;
   // False until the pointer has moved past a small threshold - lets a
@@ -55,7 +58,7 @@ type Props = {
   conflictBerthIds: Set<string>;
   onEmptyClick: (berthId: string, dateISO: string) => void;
   onReservationClick: (reservation: Reservation) => void;
-  onMove: (reservationId: string, newStartISO: string, newEndISO: string) => void;
+  onMove: (reservationId: string, newStartISO: string, newEndISO: string, newBerthId?: string) => void;
   onResize: (reservationId: string, newStartISO: string, newEndISO: string) => void;
   onAddFollowUp: (berthId: string, dateISO: string, suggestedCheckInTime: string) => void;
 };
@@ -180,15 +183,21 @@ export default function CalendarGrid({
       }
 
       const hit = dateUnderPointer(e.clientX, e.clientY);
-      // A move can't change berths, so outside this berth's rows the bar
-      // just stops tracking the pointer instead of jumping somewhere wrong.
-      if (!hit || hit.berthId !== current.reservation.berthId) {
+      // Off the grid entirely (above the header, below the table) - stop
+      // tracking rather than jumping somewhere meaningless.
+      if (!hit) {
         if (!current.hasMoved) setMoveState({ ...current, hasMoved: true });
         return;
       }
       const newStart = addDaysToIso(hit.dateISO, -current.grabOffsetDays);
       const newEnd = addDaysToIso(newStart, current.durationDays);
-      setMoveState({ ...current, hasMoved: true, previewStart: newStart, previewEnd: newEnd });
+      setMoveState({
+        ...current,
+        hasMoved: true,
+        previewStart: newStart,
+        previewEnd: newEnd,
+        previewBerthId: hit.berthId,
+      });
     }
 
     function handlePointerUp() {
@@ -197,9 +206,17 @@ export default function CalendarGrid({
         if (current.hasMoved) {
           if (
             current.previewStart !== current.originalStart ||
-            current.previewEnd !== current.originalEnd
+            current.previewEnd !== current.originalEnd ||
+            current.previewBerthId !== current.reservation.berthId
           ) {
-            onMove(current.reservation.id, current.previewStart, current.previewEnd);
+            onMove(
+              current.reservation.id,
+              current.previewStart,
+              current.previewEnd,
+              current.previewBerthId !== current.reservation.berthId
+                ? current.previewBerthId
+                : undefined
+            );
           }
         } else {
           // No real movement happened - treat it as a click.
@@ -237,6 +254,7 @@ export default function CalendarGrid({
       grabOffsetDays,
       previewStart: startISO,
       previewEnd: endISO,
+      previewBerthId: r.berthId,
       pointerDownX: e.clientX,
       pointerDownY: e.clientY,
       hasMoved: false,
@@ -274,7 +292,14 @@ export default function CalendarGrid({
       <tbody>
         {berths.map((berth) => {
           const berthReservations = reservations
-            .filter((r) => r.berthId === berth.id)
+            .filter((r) => {
+              // A reservation being dragged shows up only under whichever
+              // berth is currently under the pointer, not its original one -
+              // it visually "picks up" from its own row and "lands" in the
+              // target row as the drag crosses between berths.
+              if (moveState?.reservation.id === r.id) return moveState.previewBerthId === berth.id;
+              return r.berthId === berth.id;
+            })
             // While actively resizing or moving, feed the *preview* dates
             // into lane assignment/segments so the bar visually grows,
             // shrinks, or slides live instead of jumping only on drop.
