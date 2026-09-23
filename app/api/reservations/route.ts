@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkOverlap, checkLengthFit, OverlapError, isTransactionConflict } from "@/lib/validation";
 import { parseDateOnly } from "@/lib/dates";
+import type { OccupantType } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -9,6 +10,13 @@ export async function GET(request: NextRequest) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const search = searchParams.get("search")?.trim();
+  const occupantTypeParam = searchParams.get("occupantType");
+  const occupantType =
+    occupantTypeParam === "VESSEL" || occupantTypeParam === "EVENT"
+      ? (occupantTypeParam as OccupantType)
+      : undefined;
+  const sort = searchParams.get("sort") === "desc" ? "desc" : "asc";
+  const takeParam = searchParams.get("take");
 
   // A search ignores the visible date window on purpose - it's meant to
   // find a booking anywhere across the 23 years of history, not just the
@@ -16,6 +24,7 @@ export async function GET(request: NextRequest) {
   const reservations = await prisma.reservation.findMany({
     where: {
       berthId,
+      ...(occupantType ? { occupantType } : {}),
       ...(search
         ? { occupantName: { contains: search } }
         : {
@@ -24,8 +33,8 @@ export async function GET(request: NextRequest) {
           }),
     },
     include: { berth: true },
-    orderBy: { startDate: "asc" },
-    take: search ? 25 : undefined,
+    orderBy: { startDate: sort },
+    take: search ? 25 : takeParam ? Number(takeParam) : undefined,
   });
 
   return NextResponse.json(reservations);
