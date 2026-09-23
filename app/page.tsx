@@ -225,7 +225,12 @@ export default function CalendarPage() {
           <input
             type="date"
             value={rangeStart}
-            onChange={(e) => setRangeStart(e.target.value)}
+            onChange={(e) => {
+              // A cleared/incomplete date fires onChange with "" - ignore it
+              // instead of feeding an invalid date into the calendar (which
+              // crashes the page), and just wait for a complete date.
+              if (e.target.value) setRangeStart(e.target.value);
+            }}
             className="rounded-md border border-[#e5e5e5] px-2 py-1.5 text-[13px] font-mono"
           />
           <button
